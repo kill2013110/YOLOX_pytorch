@@ -63,6 +63,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
             nms_out_index = torchvision.ops.batched_nms(
                 detections[:, :4],
                 detections[:, 4] * detections[:, 5],
+                # detections[:, 4],
                 detections[:, 6],
                 nms_thre,
             )

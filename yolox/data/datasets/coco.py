@@ -39,7 +39,7 @@ class COCODataset(Dataset):
 
     def __init__(
         self,
-        data_dir=None,
+        img_dir=None,
         json_file="instances_train2017.json",
         name="train2017",
         img_size=(416, 416),
@@ -56,12 +56,17 @@ class COCODataset(Dataset):
             preproc: data augmentation strategy
         """
         super().__init__(img_size)
-        if data_dir is None:
-            data_dir = os.path.join(get_yolox_datadir(), "COCO")
-        self.data_dir = data_dir
+        # if data_dir is None:
+        #     data_dir = os.path.join(get_yolox_datadir(), "COCO")
+        # self.data_dir = data_dir
+        if img_dir is None:
+            img_dir = os.path.join(get_yolox_datadir(), "COCO")
+        self.img_dir = img_dir
         self.json_file = json_file
 
-        self.coco = COCO(os.path.join(self.data_dir, "annotations", self.json_file))
+        # self.coco = COCO(os.path.join(self.data_dir, self.json_file))
+        self.coco = COCO(self.json_file)
+
         remove_useless_info(self.coco)
         self.ids = self.coco.getImgIds()
         self.class_ids = sorted(self.coco.getCatIds())
@@ -94,7 +99,8 @@ class COCODataset(Dataset):
         )
         max_h = self.img_size[0]
         max_w = self.img_size[1]
-        cache_file = os.path.join(self.data_dir, f"img_resized_cache_{self.name}.array")
+        # cache_file = os.path.join(self.data_dir, f"img_resized_cache_{self.name}.array")
+        cache_file = os.path.join(self.img_dir, f"img_resized_cache_{self.name}.array")
         if not os.path.exists(cache_file):
             logger.info(
                 "Caching images for the first time. This might take about 20 minutes for COCO"
@@ -188,7 +194,8 @@ class COCODataset(Dataset):
     def load_image(self, index):
         file_name = self.annotations[index][3]
 
-        img_file = os.path.join(self.data_dir, self.name, file_name)
+        # img_file = os.path.join(self.data_dir, self.name, file_name)
+        img_file = os.path.join(self.img_dir, file_name)
 
         img = cv2.imread(img_file)
         assert img is not None

@@ -8,8 +8,8 @@ import numpy as np
 __all__ = ["vis"]
 
 
-def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
-
+def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None, show_conf=True):
+    t_size, t_thick = 0.7, 2
     for i in range(len(boxes)):
         box = boxes[i]
         cls_id = int(cls_ids[i])
@@ -26,23 +26,37 @@ def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
         txt_color = (0, 0, 0) if np.mean(_COLORS[cls_id]) > 0.5 else (255, 255, 255)
         font = cv2.FONT_HERSHEY_SIMPLEX
 
-        txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
+        txt_size = cv2.getTextSize(text, font, t_size, t_thick)[0]
+        # if txt_size[0]>(x1-y1)*1.5:
+        #     t_size = t_size/(txt_size[0]/(x1-x0))
+        #     txt_size = cv2.getTextSize(text, font, t_size, t_thick)[0]
+        # if txt_size[0]<150:t_thick=1
         cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
 
-        txt_bk_color = (_COLORS[cls_id] * 255 * 0.7).astype(np.uint8).tolist()
-        cv2.rectangle(
-            img,
-            (x0, y0 + 1),
-            (x0 + txt_size[0] + 1, y0 + int(1.5*txt_size[1])),
-            txt_bk_color,
-            -1
-        )
-        cv2.putText(img, text, (x0, y0 + txt_size[1]), font, 0.4, txt_color, thickness=1)
+        if show_conf:
+            txt_bk_color = (_COLORS[cls_id] * 255 * 0.7).astype(np.uint8).tolist()
+            cv2.rectangle(
+                img,
+                (x0, y0 + 1),
+                (x0 + txt_size[0] + 1, y0 + int(1.5*txt_size[1])),
+                txt_bk_color,
+                -1
+            )
+            cv2.putText(img, text, (x0, y0 + txt_size[1]), font, t_size, txt_color, thickness=t_thick)
 
     return img
 
-
 _COLORS = np.array(
+    [
+        1.,0.,0.,
+        0.,1.,0.,
+        1.,1.,0.,
+        0.,0.,1.,
+        0.,1.,1.
+    ]
+).astype(np.float32).reshape(-1, 3)
+
+_COLORS_org = np.array(
     [
         0.000, 0.447, 0.741,
         0.850, 0.325, 0.098,

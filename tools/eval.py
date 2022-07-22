@@ -32,9 +32,9 @@ def make_parser():
         type=str,
         help="url used to set up distributed training",
     )
-    parser.add_argument("-b", "--batch-size", type=int, default=64, help="batch size")
+    parser.add_argument("-b", "--batch-size", type=int, default=1, help="batch size")
     parser.add_argument(
-        "-d", "--devices", default=None, type=int, help="device for training"
+        "-d", "--devices", default=1, type=int, help="device for training"
     )
     parser.add_argument(
         "--num_machines", default=1, type=int, help="num of node for training"
@@ -45,14 +45,15 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default=None,
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
         type=str,
         help="pls input your expriment description file",
     )
-    parser.add_argument("-c", "--ckpt", default=None, type=str, help="ckpt for eval")
-    parser.add_argument("--conf", default=None, type=float, help="test conf")
+    parser.add_argument("-c", "--ckpt", default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_sig_conf_fl_0.5lr_c_random_scale\best_ckpt.pth",
+                        type=str, help="ckpt for eval")
+    parser.add_argument("--conf", default=0.001, type=float, help="test conf")
     parser.add_argument("--nms", default=None, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=None, type=int, help="test img size")
+    parser.add_argument("--tsize", default=640, type=int, help="test img size")
     parser.add_argument("--seed", default=None, type=int, help="eval seed")
     parser.add_argument(
         "--fp16",

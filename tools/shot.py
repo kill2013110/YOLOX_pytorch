@@ -5,8 +5,6 @@
 import argparse
 import os
 import time
-
-import numpy as np
 from loguru import logger
 
 import cv2
@@ -24,20 +22,17 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Demo!")
     parser.add_argument(
-        "--demo", default="video", help="demo type, eg. image, video and webcam"
+        "--demo", default="shot", help="demo type, eg. image, video and webcam"
     )
     parser.add_argument("-expn", "--experiment-name", type=str, default='iou')
-    parser.add_argument("-n", "--name", type=str, default='s_container_det_ciou', help="model name")
+    parser.add_argument("-n", "--name", type=str, default='yolox-s', help="model name")
 
-    # parser.add_argument(
-    #     "--path", default=r"E:\ocr\container_ocr\rec_dataset", help="path to images or video"
-    # )
+    parser.add_argument(
+        "--path", default=r"F:\liwenlong\kapao\2.mp4", help="path to images or video"
+    )
     # parser.add_argument(
     #     "--path", default="F:\datasets\Mask_detection/test_pic/", help="path to images or video"
     # )
-    parser.add_argument(
-        "--path", default="F:\datasets\Mask_detection/1.mp4", help="path to images or video"
-    )
     parser.add_argument("--camid", type=int, default=0, help="webcam demo camera id")
     parser.add_argument(
         "--save_result",
@@ -50,14 +45,12 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_container_det.py',
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_face.py',
         type=str,
         help="pls input your experiment description file",
     )
     parser.add_argument("-c", "--ckpt",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_container_det_ciou\best_ckpt.pth",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\best_ckpt.pth",
+                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_face_alpha_ciou\best_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument(
         "--device",
@@ -144,7 +137,7 @@ class Predictor(object):
             self.model(x)
             self.model = model_trt
 
-    def inference(self, img):
+    def inference(self, img, info_vis=True):
         img_info = {"id": 0}
         if isinstance(img, str):
             img_info["file_name"] = os.path.basename(img)
@@ -152,7 +145,7 @@ class Predictor(object):
         else:
             img_info["file_name"] = None
 
-        # height, width, _ = img.shape
+        height, width, _ = img.shape
         # img_min_side = 1000
         # if width <= height:
         #     f = float(img_min_side) / width
@@ -190,10 +183,11 @@ class Predictor(object):
                 outputs, self.num_classes, self.confthre,
                 self.nmsthre, class_agnostic=True
             )
-            # logger.info("Infer time: {:.4f}s".format(time.time() - t0))
+            if info_vis:
+                logger.info("Infer time: {:.4f}s".format(time.time() - t0))
         return outputs, img_info
 
-    def visual(self, output, img_info, cls_conf=0.35):
+    def visual(self, output, img_info, cls_conf=0.35, show_conf=True):
         ratio = img_info["ratio"]
         img = img_info["raw_img"]
         if output is None:
@@ -208,73 +202,101 @@ class Predictor(object):
         cls = output[:, 6]
         scores = output[:, 4] * output[:, 5]
 
-        vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names)
+        vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names,show_conf=show_conf)
         return vis_res
 
+def cs_shot(predictor, args):
+    import numpy as np
+    # from mss import mss
+    from pynput import mouse, keyboard
+    import win32api, win32gui,win32con, pyautogui
 
-def image_demo(predictor, vis_folder, path, current_time, save_result):
-    if os.path.isdir(path):
-        files = get_image_list(path)
-    else:
-        files = [path]
-    files.sort()
-    for image_name in files:
-        outputs, img_info = predictor.inference(image_name)
-        result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
-        if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
-            os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
-            logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, result_image)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
+    def switch(key):
+        key2 = keyboard.Key.alt.alt_l
+        key1 = keyboard.Key.enter
+        if key == key2:
+            if off_on:
+                off_on = False
+            else: off_on = True
 
+    # 320 256 192 128 64
+    off_on = True
+    mouse_con = mouse.Controller()
+    half_scale = 128
+    t0 = time.time()
+    with keyboard.Listener(on_press=switch) as listener:
+        hwnd = win32gui.FindWindow(None, 'Counter-Strike: Global Offensive - Direct3D 9')
+        rect = win32gui.GetWindowRect(hwnd)
+        # rect = get_window_rect(hwnd)
 
-def imageflow_demo(predictor, vis_folder, current_time, args):
-    cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    fps_list = []
-    if args.save_result:
-        save_folder = os.path.join(
-            vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-        )
-        os.makedirs(save_folder, exist_ok=True)
-        if args.demo == "video":
-            save_path = os.path.join(save_folder, os.path.basename(args.path))
-        else:
-            save_path = os.path.join(save_folder, "camera.mp4")
-        logger.info(f"video save_path is {save_path}")
-        vid_writer = cv2.VideoWriter(
-            save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
-        )
-    while True:
-        t0 = time.time()
-        ret_val, frame = cap.read()
-        if ret_val:
-            outputs, img_info = predictor.inference(frame)
-            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
-            if args.save_result:
-                vid_writer.write(result_frame)
-            else:
-                # cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
-                t = time.time()
-                fps_list.append(1 / (t - t0))
-                # print('{:.1f} FPS'.format(1 / (t - t0)))
-                cv2.putText(result_frame, '{:.1f} FPS'.format(1 / (t - t0)), (50, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), thickness=4)
-                cv2.imshow("yolox", result_frame)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord("Q"):
-                break
-        else:
-            print(np.array(fps_list).mean())
-            break
+        while 1:
+            stat_xy = (0, 0)
+            region = rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]
+
+            scale = 1920/region[2], 1080/region[3],
+
+            frame = np.array(pyautogui.screenshot(region=region))
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # cv2.imshow('1', frame)
+            # cv2.waitKey()
+
+            ih, iw = frame.shape[:2]
+            t, l = int(ih/2-half_scale), int(iw/2-half_scale)
+            img = frame[t:t+half_scale*2, l:l+half_scale*2].copy()
+
+            cv2.rectangle(frame, (l, t), (l+half_scale*2, t+half_scale*2), (255, 255, 255), 2)
+
+            outputs, img_info = predictor.inference(img, info_vis=False)
+            # result_frame = predictor.visual(outputs[0], img_info, predictor.confthre,show_conf=False)
+            # frame[t:half_scale*2+t, l:half_scale*2+l] = cv2.resize(result_frame, (half_scale*2, half_scale*2))
+
+            if outputs[0] != None:
+                boxes = np.array(outputs[0].cpu())
+                boxes[:, :4] = np.int16(boxes[:, :4]/img_info['ratio'])
+                scores = boxes[:, 4] * boxes[:, 5]
+
+                w_h = boxes[:, 2:4] - boxes[:, :2]
+                # idx = np.argmax(w_h[:, 0] * w_h[:, 1])
+                idx = np.argmax(scores)
+                shot_x = int((boxes[idx, 0] + boxes[idx, 2])/2) + l + rect[0]
+                shot_y = int((boxes[idx, 1] + boxes[idx, 3])/2 + t + rect[1])
+                # shot_y = int((boxes[idx, 1] + boxes[idx, 3])/2 + t + rect[1] + w_h[idx, 1]*2)
+                stat_xy = (shot_x, shot_y)
+
+                if off_on:
+                    org_xy = win32api.GetCursorPos()
+                    # org_xy = (1920, 1080)
+
+                    move_xy = (stat_xy[0] - org_xy[0], stat_xy[1] - org_xy[1])
+                    # move_xy = int(move_xy[0]*scale[0]), int(move_xy[1]*scale[1])
+                    move_d = (move_xy[0] ** 2 + move_xy[1] ** 2) ** 0.5
+                    if stat_xy != (0, 0) and move_d < half_scale:
+                        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_xy[0], move_xy[1], 0, 0)
+                        # time.sleep(0.001)
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+                        # print(f'move:', org_xy, stat_xy, move_xy, move_d, '\n')
+                    # else:
+                    #     print(f'not move:', org_xy, stat_xy, move_xy, move_d, '\n')
+
+                cv2.circle(frame, (shot_x, shot_y), 2, (0, 255, 0), 3)
+
+                for i, box in enumerate(boxes):
+                    if scores[i]>predictor.confthre:
+                        cv2.rectangle(frame,
+                        (int(box[0] + l), int(box[1] + t)),
+                        (int(box[2] + l), int(box[3] + t)), (0, 255, 0), 2)
+
+            t = time.time()
+            # print('{:.1f} FPS'.format(1 / (t - t0)))
+            cv2.putText(frame, '{:.1f} FPS'.format(1 / (t - t0)), (50, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), thickness=4)
+            cv2.imshow("shot", cv2.resize(frame, (960, 540)))
+            cv2.waitKey(1)
+            t0 = time.time()
+
 
 def main(exp, args):
     if not args.experiment_name:
@@ -317,7 +339,7 @@ def main(exp, args):
         logger.info("loading checkpoint")
         ckpt = torch.load(ckpt_file, map_location="cpu")
         # load the model state dict
-        model.load_state_dict(ckpt["model"], 0)
+        model.load_state_dict(ckpt["model"])
         logger.info("loaded checkpoint done.")
 
     if args.fuse:
@@ -342,11 +364,8 @@ def main(exp, args):
         args.device, args.fp16, args.legacy,
     )
     current_time = time.localtime()
-    if args.demo == "image":
-        image_demo(predictor, vis_folder, args.path, current_time, args.save_result)
-    elif args.demo == "video" or args.demo == "webcam":
-        imageflow_demo(predictor, vis_folder, current_time, args)
-
+    if args.demo == "shot":
+        cs_shot(predictor, args)
 
 if __name__ == "__main__":
     args = make_parser().parse_args()

@@ -38,7 +38,6 @@ class Trainer:
         # before_train methods.
         self.exp = exp
         self.args = args
-
         # training related attr
         self.max_epoch = exp.max_epoch
         self.amp_training = args.fp16

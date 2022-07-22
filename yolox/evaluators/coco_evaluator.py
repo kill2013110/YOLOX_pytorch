@@ -135,6 +135,7 @@ class COCOEvaluator:
             ap50 (float) : COCO AP of IoU=50
             summary (sr): summary info of evaluation.
         """
+        res_boxes = []
         # TODO half to amp_test
         tensor_type = torch.cuda.HalfTensor if half else torch.cuda.FloatTensor
         model = model.eval()
@@ -183,8 +184,20 @@ class COCOEvaluator:
                 if is_time_record:
                     nms_end = time_synchronized()
                     nms_time += nms_end - infer_end
-
-            data_list.extend(self.convert_to_coco_format(outputs, info_imgs, ids))
+                 # '''pkl'''
+                # pre_img_boxes = []
+                # boxes = []
+                # for box in outputs:
+                #     box = box.cpu().numpy()
+                #     boxes.append(box)
+                # boxes = np.array(boxes).reshape((-1,7))
+                # for i in range(self.num_classes):
+                #     cls_box = boxes[boxes[:,-1]==i][:,:-2]
+                #     pre_img_boxes.append(cls_box)
+                # res_boxes.append(pre_img_boxes)
+            coco_data, x1y1x2y2 = self.convert_to_coco_format(outputs, info_imgs, ids)
+            data_list.extend(coco_data)
+            res_boxes.append(x1y1x2y2)
 
         statistics = torch.cuda.FloatTensor([inference_time, nms_time, n_samples])
         if distributed:
@@ -216,6 +229,20 @@ class COCOEvaluator:
 
             cls = output[:, 6]
             scores = output[:, 4] * output[:, 5]
+
+            ''''''
+            pre_img_boxes = []
+            boxes = []
+            # for box in outputs:
+            #     box = box.cpu().numpy()
+            #     boxes.append(box)
+            # boxes = np.array(boxes).reshape((-1,7))
+            # for i in range(self.num_classes):
+            #     cls_box = boxes[boxes[:,-1]==i][:,:-2]
+            #     pre_img_boxes.append(cls_box)
+            # res_boxes.append(pre_img_boxes)
+            ''''''
+
             for ind in range(bboxes.shape[0]):
                 label = self.dataloader.dataset.class_ids[int(cls[ind])]
                 pred_data = {
@@ -226,7 +253,18 @@ class COCOEvaluator:
                     "segmentation": [],
                 }  # COCO json format
                 data_list.append(pred_data)
-        return data_list
+
+                '''x1y1x2y2'''
+                box = bboxes[ind].numpy()
+                box[2:] = box[0:2] + box[2:]
+                boxes.append(np.hstack((box,scores[ind].numpy(),label-1)))
+            boxes = np.array(boxes).reshape((-1, 6))
+            for i in range(self.num_classes):
+                cls_box = boxes[boxes[:,-1]==i][:,:-1]
+                pre_img_boxes.append(cls_box)
+
+        return data_list, []
+        # return data_list, pre_img_boxes
 
     def evaluate_prediction(self, data_dict, statistics):
         if not is_main_process():

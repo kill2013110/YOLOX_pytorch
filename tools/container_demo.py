@@ -5,10 +5,8 @@
 import argparse
 import os
 import time
-
-import numpy as np
 from loguru import logger
-
+import numpy as np
 import cv2
 
 import torch
@@ -24,20 +22,17 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Demo!")
     parser.add_argument(
-        "--demo", default="video", help="demo type, eg. image, video and webcam"
+        "--demo", default="image", help="demo type, eg. image, video and webcam"
     )
     parser.add_argument("-expn", "--experiment-name", type=str, default='iou')
     parser.add_argument("-n", "--name", type=str, default='s_container_det_ciou', help="model name")
 
-    # parser.add_argument(
-    #     "--path", default=r"E:\ocr\container_ocr\rec_dataset", help="path to images or video"
-    # )
+    parser.add_argument(
+        "--path", default=r"E:\ocr\container_ocr\rec_dataset\det_rec_val", help="path to images or video"
+    )
     # parser.add_argument(
     #     "--path", default="F:\datasets\Mask_detection/test_pic/", help="path to images or video"
     # )
-    parser.add_argument(
-        "--path", default="F:\datasets\Mask_detection/1.mp4", help="path to images or video"
-    )
     parser.add_argument("--camid", type=int, default=0, help="webcam demo camera id")
     parser.add_argument(
         "--save_result",
@@ -50,14 +45,12 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_container_det.py',
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_container_det.py',
         type=str,
         help="pls input your experiment description file",
     )
     parser.add_argument("-c", "--ckpt",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_container_det_ciou\best_ckpt.pth",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\best_ckpt.pth",
+                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_container_det_ciou\best_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument(
         "--device",
@@ -152,7 +145,7 @@ class Predictor(object):
         else:
             img_info["file_name"] = None
 
-        # height, width, _ = img.shape
+        height, width, _ = img.shape
         # img_min_side = 1000
         # if width <= height:
         #     f = float(img_min_side) / width
@@ -218,28 +211,37 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
     else:
         files = [path]
     files.sort()
+    save_dir = r'E:\ocr\container_ocr\rec_dataset\\yolox_det_val_out\\'
+    a = time.time()
     for image_name in files:
         outputs, img_info = predictor.inference(image_name)
-        result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
-        if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
-            os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
-            logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, result_image)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
+        if outputs[0] != None:
+            boxes = np.array(outputs[0].cpu())
+            boxes[:, :4] = np.int16(boxes[:, :4] / img_info['ratio'])
+            scores = boxes[:, 4] * boxes[:, 5]
 
-
+        img_id = os.path.split(image_name)[1][:5]
+        os.makedirs(save_dir+img_id, exist_ok=True)
+        adjusth, adjustw = 0, 0
+        adjusth, adjustw = 0.05, 0.05
+        for i, box in enumerate(boxes):
+            if scores[i]>0.3:
+                # image_shape = img_info['raw_img'].shape
+                left, top, right, bottom, _, _, cls = box
+                top = max(0, int(top - adjusth * (bottom - top)))
+                left = max(0, int(left - adjustw * (right - left)))
+                bottom = min(img_info['height'], int(bottom + adjusth * (bottom - top)))
+                right = min(img_info['width'], int(right + adjustw * (right - left)))
+                img = img_info['raw_img'][top:bottom, left:right]
+                # print(img_info['height'], img_info['width'])
+                save_file_name = os.path.join(save_dir+img_id, img_id+f'_{i}.jpg')
+                cv2.imwrite(save_file_name, img)
+    print(len(files)/(time.time()-a))
 def imageflow_demo(predictor, vis_folder, current_time, args):
     cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
     fps = cap.get(cv2.CAP_PROP_FPS)
-    fps_list = []
     if args.save_result:
         save_folder = os.path.join(
             vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
@@ -254,7 +256,6 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
         )
     while True:
-        t0 = time.time()
         ret_val, frame = cap.read()
         if ret_val:
             outputs, img_info = predictor.inference(frame)
@@ -263,18 +264,13 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                 vid_writer.write(result_frame)
             else:
                 # cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
-                t = time.time()
-                fps_list.append(1 / (t - t0))
-                # print('{:.1f} FPS'.format(1 / (t - t0)))
-                cv2.putText(result_frame, '{:.1f} FPS'.format(1 / (t - t0)), (50, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), thickness=4)
                 cv2.imshow("yolox", result_frame)
             ch = cv2.waitKey(1)
             if ch == 27 or ch == ord("q") or ch == ord("Q"):
                 break
         else:
-            print(np.array(fps_list).mean())
             break
+
 
 def main(exp, args):
     if not args.experiment_name:
@@ -317,7 +313,7 @@ def main(exp, args):
         logger.info("loading checkpoint")
         ckpt = torch.load(ckpt_file, map_location="cpu")
         # load the model state dict
-        model.load_state_dict(ckpt["model"], 0)
+        model.load_state_dict(ckpt["model"])
         logger.info("loaded checkpoint done.")
 
     if args.fuse:

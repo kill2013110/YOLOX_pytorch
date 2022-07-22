@@ -14,12 +14,12 @@ class Exp(MyExp):
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # Define yourself dataset path
-        self.data_dir = "datasets/coco128"
-        self.train_ann = "instances_train2017.json"
-        self.val_ann = "instances_val2017.json"
+        self.data_dir = "F:\datasets\Mask_detection"
+        self.train_ann = "train.json"
+        self.val_ann = "val.json"
 
-        self.num_classes = 71
+        self.num_classes = 5
 
-        self.max_epoch = 300
-        self.data_num_workers = 4
+        self.max_epoch = 75
+        self.data_num_workers = 2
         self.eval_interval = 1

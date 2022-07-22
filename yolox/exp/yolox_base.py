@@ -37,7 +37,8 @@ class Exp(BaseExp):
         # You can uncomment this line to specify a multiscale range
         # self.random_size = (14, 26)
         # dir of dataset images, if data_dir is None, this project will use `datasets` dir
-        self.data_dir = None
+        self.train_img_dir = None
+        self.val_img_dir = None
         # name of annotation file for training
         self.train_ann = "instances_train2017.json"
         # name of annotation file for evaluation
@@ -123,6 +124,7 @@ class Exp(BaseExp):
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
+
         self.model.head.initialize_biases(1e-2)
         self.model.train()
         return self.model
@@ -148,7 +150,8 @@ class Exp(BaseExp):
 
         with wait_for_the_master(local_rank):
             dataset = COCODataset(
-                data_dir=self.data_dir,
+                img_dir=self.train_img_dir,
+                name=self.name,
                 json_file=self.train_ann,
                 img_size=self.input_size,
                 preproc=TrainTransform(
@@ -280,9 +283,9 @@ class Exp(BaseExp):
         from yolox.data import COCODataset, ValTransform
 
         valdataset = COCODataset(
-            data_dir=self.data_dir,
+            img_dir=self.val_img_dir,
             json_file=self.val_ann if not testdev else self.test_ann,
-            name="val2017" if not testdev else "test2017",
+            name=self.name if self.name!=None else "val2017" if not testdev else "test2017",
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
         )

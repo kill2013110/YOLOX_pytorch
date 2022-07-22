@@ -17,7 +17,7 @@ from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
-    parser.add_argument("-expn", "--experiment-name", type=str, default=None)
+    parser.add_argument("-expn", "--experiment-name", type=str, default='s_mask_416_1lr_arc')
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
 
     # distributed
@@ -30,25 +30,29 @@ def make_parser():
         type=str,
         help="url used to set up distributed training",
     )
-    parser.add_argument("-b", "--batch-size", type=int, default=64, help="batch size")
+    parser.add_argument("-b", "--batch-size", type=int, default=8, help="batch size")
     parser.add_argument(
-        "-d", "--devices", default=None, type=int, help="device for training"
+        "-d", "--devices", default=1, type=int, help="device for training"
     )
     parser.add_argument(
         "-f",
         "--exp_file",
-        default=None,
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask_fl.py',
         type=str,
         help="plz input your experiment description file",
     )
     parser.add_argument(
         "--resume", default=False, action="store_true", help="resume training"
     )
-    parser.add_argument("-c", "--ckpt", default=None, type=str, help="checkpoint file")
+    parser.add_argument("-c", "--ckpt",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\best_ckpt.pth",
+                        default="E:\ocr\container_ocr\YOLOX\weight\yolox_s.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_sig_cls_fl_0.33lr\epoch_18_ckpt.pth",
+                        type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=None,
+        default=19,
         type=int,
         help="resume training start epoch",
     )
