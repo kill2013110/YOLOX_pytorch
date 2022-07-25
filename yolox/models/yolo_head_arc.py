@@ -15,7 +15,7 @@ from .losses import IOUloss, Focalloss
 from .network_blocks import BaseConv, DWConv
 
 
-class YOLOXHead(nn.Module):
+class YOLOXHeadArc(nn.Module):
     def __init__(
         self,
         num_classes,
@@ -39,9 +39,29 @@ class YOLOXHead(nn.Module):
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
         self.cls_preds = nn.ModuleList()
+        self.cls_w = nn.ParameterList()
+
         self.reg_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
+
+        self.arc = True
+
+        bias = True
+        if self.arc:
+            # self.obj_arc = True
+            # self.cls_arc = True
+
+            bias = False
+            self.s = 30.
+            self.m = 0.5
+            self.cos_m = math.cos(self.m)
+            self.sin_m = math.sin(self.m)
+            self.th = math.cos(math.pi - self.m)
+            self.mm = math.sin(math.pi - self.m) * self.m
+
+
+
         Conv = DWConv if depthwise else BaseConv
 
         for i in range(len(in_channels)):
@@ -95,14 +115,20 @@ class YOLOXHead(nn.Module):
                 )
             )
             self.cls_preds.append(
+                # nn.Linear
                 nn.Conv2d(
                     in_channels=int(256 * width),
                     out_channels=self.n_anchors * self.num_classes,
                     kernel_size=1,
                     stride=1,
                     padding=0,
+                    bias=bias,
                 )
             )
+            self.cls_w.append(
+                nn.Parameter(torch.FloatTensor(self.n_anchors * self.num_classes, int(256 * width)))
+            )
+
             self.reg_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
@@ -110,6 +136,7 @@ class YOLOXHead(nn.Module):
                     kernel_size=1,
                     stride=1,
                     padding=0,
+                    # bias=bias,
                 )
             )
             self.obj_preds.append(
@@ -119,29 +146,38 @@ class YOLOXHead(nn.Module):
                     kernel_size=1,
                     stride=1,
                     padding=0,
+                    # bias=bias,
                 )
             )
         self.use_fl = False
 
-        self.use_l1 = True
+        self.use_l1 = False
 
-        self.Focal_loss = Focalloss()
+        # self.Focal_loss_fn = Focalloss()
+        # self.cls_loss_fn = nn.CrossEntropyLoss(reduction="none")
+        self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
+
+        self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
+
         self.l1_loss = nn.L1Loss(reduction="none")
-        self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
-        self.iou_loss = IOUloss(reduction="none")
+        self.iou_loss_fn = IOUloss(reduction="none")
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
 
     def initialize_biases(self, prior_prob):
-        for conv in self.cls_preds:
-            b = conv.bias.view(self.n_anchors, -1)
-            b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-            conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+        if not self.arc:
+            for conv in self.cls_preds:
+                b = conv.bias.view(self.n_anchors, -1)
+                b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
+                conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
-        for conv in self.obj_preds:
-            b = conv.bias.view(self.n_anchors, -1)
-            b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-            conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            for conv in self.obj_preds:
+                b = conv.bias.view(self.n_anchors, -1)
+                b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
+                conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+        else:
+            for w in self.cls_w:
+                nn.init.xavier_uniform_(w)
 
     def forward(self, xin, labels=None, imgs=None):
         outputs = []
@@ -158,7 +194,22 @@ class YOLOXHead(nn.Module):
             reg_x = x
 
             cls_feat = cls_conv(cls_x)
-            cls_output = self.cls_preds[k](cls_feat)
+            if self.arc:
+
+                if self.training:
+                    cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
+                    self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_w[k], dim=1).view(self.cls_preds[k].weight.shape)
+                    cls_output = self.cls_preds[k](cls_feat_nor)
+                    # torch.dot(self.cls_preds[k].weight[0, :, 0, 0], cls_feat_nor[0, :, 0, 0])
+                else:
+                    # cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
+                    # self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_preds[k].weight, dim=1)
+                    # cls_output = self.cls_preds[k](cls_feat_nor)
+                    self.cls_preds[k].weight.data = self.cls_w[k].view(self.cls_preds[k].weight.shape)
+                    cls_output = self.cls_preds[k](cls_feat)* self.s
+            else:
+                cls_output = self.cls_preds[k](cls_feat)
+
 
             reg_feat = reg_conv(reg_x)
             reg_output = self.reg_preds[k](reg_feat)
@@ -188,10 +239,12 @@ class YOLOXHead(nn.Module):
                     origin_preds.append(reg_output.clone())
 
             else:
+                # output = torch.cat(
+                #     [reg_output, obj_output.sigmoid(), nn.functional.softmax(cls_output,dim=1)], 1
+                # )
                 output = torch.cat(
                     [reg_output, obj_output.sigmoid(), cls_output.sigmoid()], 1
                 )
-
             outputs.append(output)
 
         if self.training:
@@ -399,36 +452,36 @@ class YOLOXHead(nn.Module):
         fg_masks = torch.cat(fg_masks, 0)
         if self.use_l1:
             l1_targets = torch.cat(l1_targets, 0)
-
-
         num_fg = max(num_fg, 1)
         loss_iou = (
-            self.iou_loss(bbox_preds.view(-1, 4)[fg_masks], reg_targets)
+            self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets)
         ).sum() / num_fg
 
-        if self.use_fl:
-            '''             Focal Loss          '''
-            alpha, gamma = 0.25, 2
-            pred = obj_preds.view(-1, 1)
-            s_pred = nn.Sigmoid()(pred)
-            loss_obj = (
-                           self.Focal_loss(s_pred, obj_targets, alpha, gamma)
-                       ).sum() / num_fg
 
-            alpha, gamma = 0.25, 2
 
-            pred = cls_preds.view(-1, self.num_classes)[fg_masks]
-            s_pred = nn.Sigmoid()(pred)
-            loss_cls = (
-                self.Focal_loss(s_pred, cls_targets, alpha, gamma)
+        loss_obj = (self.obj_loss_fn(obj_preds.view(-1, 1), obj_targets)
+                   ).sum() / num_fg
+
+        '''add arc margin'''
+        if self.arc:
+            cosine = cls_preds.view(-1, self.num_classes)[fg_masks]
+            sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+            phi = cosine * self.cos_m - sine * self.sin_m
+            phi = torch.where(cosine > 0, phi, cosine) # easy margin
+
+
+            one_hot = cls_targets
+            # -------------torch.where(out_i = {x_i if condition_i else y_i) -------------
+            output = (one_hot * phi) + ((1.0 - one_hot) * cosine)  # you can use torch.where if your torch.__version__ is 0.4
+            output *= self.s
+
+
+            loss_cls = (self.cls_loss_fn(
+                    output, cls_targets)
             ).sum() / num_fg
-        else:
 
-            loss_obj = (
-                           self.bcewithlog_loss(obj_preds.view(-1, 1), obj_targets)
-                       ).sum() / num_fg
-            loss_cls = (
-                self.bcewithlog_loss(
+        else:
+            loss_cls = (self.cls_loss_fn(
                     cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets)
             ).sum() / num_fg
 

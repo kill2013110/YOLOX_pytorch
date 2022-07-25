@@ -45,11 +45,11 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask_fl.py',
         type=str,
         help="pls input your expriment description file",
     )
-    parser.add_argument("-c", "--ckpt", default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_sig_conf_fl_0.5lr_c_random_scale\best_ckpt.pth",
+    parser.add_argument("-c", "--ckpt", default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_cls_arc_30_.5\best_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument("--conf", default=0.001, type=float, help="test conf")
     parser.add_argument("--nms", default=None, type=float, help="test nms threshold")

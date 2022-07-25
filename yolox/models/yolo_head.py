@@ -43,10 +43,18 @@ class YOLOXHead(nn.Module):
         self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
 
-        self.arc_w = nn.ModuleList()
-        self.arc = True
+        self.arc = False
 
         bias = True
+        if self.arc:
+            self.s = 30.0
+            self.m = 0.50
+            self.cos_m = math.cos(self.m)
+            self.sin_m = math.sin(self.m)
+            self.th = math.cos(math.pi - self.m)
+            self.mm = math.sin(math.pi - self.m) * self.m
+
+            bias = False
 
         Conv = DWConv if depthwise else BaseConv
 
@@ -100,25 +108,16 @@ class YOLOXHead(nn.Module):
                     ]
                 )
             )
-            if self.arc:
-                self.s = 30.0
-                self.m = 0.50
-                bias = False
-                self.arc_w.append(
-                    nn.Parameter(torch.FloatTensor(self.n_anchors*self.num_classes,
-                                                   int(256 * width)))
+            self.cls_preds.append(
+                nn.Conv2d(
+                    in_channels=int(256 * width),
+                    out_channels=self.n_anchors * self.num_classes,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    bias=bias,
                 )
-            else:
-                self.cls_preds.append(
-                    nn.Conv2d(
-                        in_channels=int(256 * width),
-                        out_channels=self.n_anchors * self.num_classes,
-                        kernel_size=1,
-                        stride=1,
-                        padding=0,
-                        bias=bias,
-                    )
-                )
+            )
             self.reg_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
@@ -153,9 +152,7 @@ class YOLOXHead(nn.Module):
         self.grids = [torch.zeros(1)] * len(in_channels)
 
     def initialize_biases(self, prior_prob):
-        if self.arc:
-            nn.init.xavier_uniform_(self.arc_w)
-        else:
+        if not self.arc:
             for conv in self.cls_preds:
                 b = conv.bias.view(self.n_anchors, -1)
                 b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
@@ -184,19 +181,14 @@ class YOLOXHead(nn.Module):
             if self.arc:
                 if self.training:
                     cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
-                    w_nor = nn.functional.normalize(self.cls_preds[k].weight, dim=0)
+                    self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_preds[k].weight, dim=0)
 
-                    conv = nn.Conv2d(
-                    in_channels=self.cls_preds[k].in_channels,
-                    out_channels=self.n_anchors * 1,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    bias=False,
-                )
-                    conv.weight.data = w_nor
-                    x_w_cos = conv(cls_feat_nor)
-                    # x_w_cos = torch.matmul(w_nor.T, cls_feat_nor)
+                    cosine = self.cls_preds[k](cls_feat_nor)
+                    sine = torch.sqrt(1. - torch.pow(cosine, 2))
+                    phi = cosine * self.cos_m - sine * self.sin_m
+                    phi = torch.where(cosine > 0, phi, cosine) # easy margin
+                    # phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+
 
                 else:
                     cls_output = self.cls_preds[k](cls_feat)

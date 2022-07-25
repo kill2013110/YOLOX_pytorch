@@ -12,7 +12,7 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-
+        self.arc = True
 
 
         # Define yourself dataset path
@@ -35,15 +35,16 @@ class Exp(MyExp):
         # self.mosaic_prob = 0
         # self.enable_mixup = False
 
+
         self.input_size = (416, 416)
-        self.multiscale_range = 5
-        # self.random_size = (10, 20)
+        # self.multiscale_range = 5
+        self.random_size = (10, 20)
         self.test_size = self.input_size
         self.num_classes = 5
         self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others')
 
         # self.l
-        self.basic_lr_per_img=0.00015625
+        self.basic_lr_per_img=0.00015625/10
         # self.basic_lr_per_img=0.00015625/10
 
         # self.no_aug_epochs = 15

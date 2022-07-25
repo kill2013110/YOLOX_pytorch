@@ -17,7 +17,7 @@ from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
-    parser.add_argument("-expn", "--experiment-name", type=str, default='s_mask_416_1lr_arc')
+    parser.add_argument("-expn", "--experiment-name", type=str, default='s_mask_416_.1lr_cls_sig_arc_30_.5_mutil_s')
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
 
     # distributed
