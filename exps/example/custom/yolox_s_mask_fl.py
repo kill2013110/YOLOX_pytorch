@@ -44,13 +44,13 @@ class Exp(MyExp):
         self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others')
 
         # self.l
-        self.basic_lr_per_img=0.00015625/10
+        self.basic_lr_per_img=0.00015625/20
         # self.basic_lr_per_img=0.00015625/10
 
         # self.no_aug_epochs = 15
         self.max_epoch = 55
         self.data_num_workers = 2
-        self.print_interval = 100
+        self.print_interval = 50
         self.eval_interval = 1
 
         # self.ckpt = r'E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\yolox_s_mask'

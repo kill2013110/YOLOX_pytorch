@@ -17,7 +17,7 @@ from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
-    parser.add_argument("-expn", "--experiment-name", type=str, default='s_mask_416_.1lr_cls_sig_arc_30_.5_mutil_s')
+    parser.add_argument("-expn", "--experiment-name", type=str, default='s_mask_416_.05lr_cls_sig_arc_30_.5_mutil_s')
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
 
     # distributed
@@ -47,12 +47,12 @@ def make_parser():
     parser.add_argument("-c", "--ckpt",
                         # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\best_ckpt.pth",
                         default="E:\ocr\container_ocr\YOLOX\weight\yolox_s.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_sig_cls_fl_0.33lr\epoch_18_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_.1lr_cls_sig_arc_30_.5_mutil_s\epoch_10_ckpt.pth",
                         type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=19,
+        default=11,
         type=int,
         help="resume training start epoch",
     )
