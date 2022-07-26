@@ -42,12 +42,12 @@ def make_parser():
         help="plz input your experiment description file",
     )
     parser.add_argument(
-        "--resume", default=True, action="store_true", help="resume training"
+        "--resume", default=False, action="store_true", help="resume training"
     )
     parser.add_argument("-c", "--ckpt",
                         # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\epoch_10_ckpt.pth",
-                        # default="E:\ocr\container_ocr\YOLOX\weight\yolox_s.pth",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\g_s_mask_416_1lr_no_bias\epoch_30_ckpt.pth",
+                        default="E:\ocr\container_ocr\YOLOX\weight\yolox_s.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\g_s_mask_416_1lr_no_bias\epoch_30_ckpt.pth",
                         # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_.1lr_cls_sig_arc_30_.5_mutil_s\epoch_10_ckpt.pth",
                         type=str, help="checkpoint file")
     parser.add_argument(
