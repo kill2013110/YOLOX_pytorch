@@ -121,10 +121,10 @@ class Exp(BaseExp):
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            if self.arc:
-                head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act)
-            else:
-                head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act)
+            # if self.arc:
+            head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act)
+            # else:
+            #     head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act)
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
@@ -247,7 +247,7 @@ class Exp(BaseExp):
             else:
                 lr = self.basic_lr_per_img * batch_size
 
-            pg0, pg1, pg2 = [], [], []  # optimizer parameter groups
+            pg0, pg1, pg2, arc_w = [], [], [], []  # optimizer parameter groups
 
             for k, v in self.model.named_modules():
                 if hasattr(v, "bias") and isinstance(v.bias, nn.Parameter):
@@ -264,6 +264,17 @@ class Exp(BaseExp):
                 {"params": pg1, "weight_decay": self.weight_decay}
             )  # add pg1 with weight_decay
             optimizer.add_param_group({"params": pg2})
+
+            # if self.arc:
+            #     # for v in self.model.head.cls_w:
+            #     #     arc_w.append(v)
+            #     # head.cls_w.0
+            #     # head.cls_w.1
+            #     # head.cls_w.2
+            #     optimizer.add_param_group(
+            #         {"params": self.model.head.cls_w, "weight_decay": self.weight_decay}
+            #     )  # add arc_w with weight_decay
+
             self.optimizer = optimizer
 
         return self.optimizer

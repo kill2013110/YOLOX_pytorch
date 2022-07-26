@@ -57,4 +57,8 @@ class ModelEMA:
             for k, v in self.ema.state_dict().items():
                 if v.dtype.is_floating_point:
                     v *= d
-                    v += (1.0 - d) * msd[k].detach()
+                    if v.shape == msd[k].shape:
+                        v += (1.0 - d) * msd[k].detach()
+                    else:
+                        print(f'The shape is different: {v}')
+

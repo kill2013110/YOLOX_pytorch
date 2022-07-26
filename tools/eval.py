@@ -49,12 +49,14 @@ def make_parser():
         type=str,
         help="pls input your expriment description file",
     )
-    parser.add_argument("-c", "--ckpt", default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_cls_arc_30_.5\best_ckpt.pth",
+    parser.add_argument("-c", "--ckpt",
+                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\g_s_mask_416_1lr_no_bias\epoch_40_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\epoch_10_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument("--conf", default=0.001, type=float, help="test conf")
     parser.add_argument("--nms", default=None, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=640, type=int, help="test img size")
-    parser.add_argument("--seed", default=None, type=int, help="eval seed")
+    parser.add_argument("--tsize", default=416, type=int, help="test img size")
+    parser.add_argument("--seed", default=0, type=int, help="eval seed")
     parser.add_argument(
         "--fp16",
         dest="fp16",

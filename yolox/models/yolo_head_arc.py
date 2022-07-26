@@ -47,18 +47,20 @@ class YOLOXHeadArc(nn.Module):
 
         self.arc = True
 
-        bias = True
+        bias = False
+
         if self.arc:
             # self.obj_arc = True
             # self.cls_arc = True
 
             bias = False
-            self.s = 30.
+            self.s = 5.
             self.m = 0.5
             self.cos_m = math.cos(self.m)
             self.sin_m = math.sin(self.m)
             self.th = math.cos(math.pi - self.m)
             self.mm = math.sin(math.pi - self.m) * self.m
+            self.easy_margin = False
 
 
 
@@ -136,7 +138,6 @@ class YOLOXHeadArc(nn.Module):
                     kernel_size=1,
                     stride=1,
                     padding=0,
-                    # bias=bias,
                 )
             )
             self.obj_preds.append(
@@ -146,10 +147,9 @@ class YOLOXHeadArc(nn.Module):
                     kernel_size=1,
                     stride=1,
                     padding=0,
-                    # bias=bias,
                 )
             )
-        self.use_fl = False
+        # self.use_fl = False
 
         self.use_l1 = False
 
@@ -167,9 +167,10 @@ class YOLOXHeadArc(nn.Module):
     def initialize_biases(self, prior_prob):
         if not self.arc:
             for conv in self.cls_preds:
-                b = conv.bias.view(self.n_anchors, -1)
-                b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-                conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+                if conv.bias != None:
+                    b = conv.bias.view(self.n_anchors, -1)
+                    b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
+                    conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
             for conv in self.obj_preds:
                 b = conv.bias.view(self.n_anchors, -1)
@@ -186,6 +187,8 @@ class YOLOXHeadArc(nn.Module):
         y_shifts = []
         expanded_strides = []
 
+        self.cls_outputs = []
+        self.nor_cls_outputs = []
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)
         ):
@@ -197,18 +200,34 @@ class YOLOXHeadArc(nn.Module):
             if self.arc:
 
                 if self.training:
+                    cls_output = self.cls_preds[k](cls_feat)
+                    self.cls_outputs.append(cls_output.permute(0,2,3,1).reshape(cls_output.shape[0],
+                                    -1,self.num_classes))
+
                     cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
-                    self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_w[k], dim=1).view(self.cls_preds[k].weight.shape)
-                    cls_output = self.cls_preds[k](cls_feat_nor)
+                    self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_preds[k].weight.data, dim=1)
+                    # self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_w[k], dim=1).view(self.cls_preds[k].weight.shape)
+                    nor_cls_output = self.cls_preds[k](cls_feat_nor)
+
+                    self.nor_cls_outputs.append(nor_cls_output.permute(0,2,3,1).reshape(nor_cls_output.shape[0],
+                                    -1,self.num_classes))
                     # torch.dot(self.cls_preds[k].weight[0, :, 0, 0], cls_feat_nor[0, :, 0, 0])
                 else:
                     # cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
                     # self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_preds[k].weight, dim=1)
-                    # cls_output = self.cls_preds[k](cls_feat_nor)
-                    self.cls_preds[k].weight.data = self.cls_w[k].view(self.cls_preds[k].weight.shape)
-                    cls_output = self.cls_preds[k](cls_feat)* self.s
+                    cls_output = self.cls_preds[k](cls_feat)
+
+                    # cls_feat_nor = nn.functional.normalize(cls_feat, dim=1)
+                    # self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_w[k], dim=1).view(
+                    #     self.cls_preds[k].weight.shape)
+                    # cls_output = self.cls_preds[k](cls_feat_nor)*self.s
+
+                    # self.cls_preds[k].weight.data = self.cls_w[k].view(self.cls_preds[k].weight.shape)
+                    # cls_output = self.cls_preds[k](cls_feat)
+
             else:
                 cls_output = self.cls_preds[k](cls_feat)
+                self.cls_w[k].data = nn.functional.normalize(self.cls_preds[k].weight.data, dim=1)[:,:,0,0]
 
 
             reg_feat = reg_conv(reg_x)
@@ -247,6 +266,9 @@ class YOLOXHeadArc(nn.Module):
                 )
             outputs.append(output)
 
+        if self.arc and self.training:
+            self.cls_outputs = torch.cat(self.cls_outputs, 1)
+            self.nor_cls_outputs = torch.cat(self.nor_cls_outputs, 1)
         if self.training:
             return self.get_losses(
                 imgs,
@@ -257,6 +279,7 @@ class YOLOXHeadArc(nn.Module):
                 torch.cat(outputs, 1),
                 origin_preds,
                 dtype=xin[0].dtype,
+                # tempt=[cls_outputs, nor_cls_outputs],
             )
         else:
             self.hw = [x.shape[-2:] for x in outputs]
@@ -316,7 +339,10 @@ class YOLOXHeadArc(nn.Module):
         outputs,
         origin_preds,
         dtype,
+        # tempt
     ):
+        # cls_outputs, nor_cls_outputs = tempt
+
         bbox_preds = outputs[:, :, :4]  # [batch, n_anchors_all, 4]
         obj_preds = outputs[:, :, 4].unsqueeze(-1)  # [batch, n_anchors_all, 1]
         cls_preds = outputs[:, :, 5:]  # [batch, n_anchors_all, n_cls]
@@ -331,6 +357,7 @@ class YOLOXHeadArc(nn.Module):
         if self.use_l1:
             origin_preds = torch.cat(origin_preds, 1)
 
+        cls_one_hot_targets = []
         cls_targets = []
         reg_targets = []
         l1_targets = []
@@ -415,12 +442,10 @@ class YOLOXHeadArc(nn.Module):
                 torch.cuda.empty_cache()
                 num_fg += num_fg_img
 
-                cls_target = F.one_hot(
+                cls_one_hot_target = F.one_hot(
                     gt_matched_classes.to(torch.int64), self.num_classes
-                ) * pred_ious_this_matching.unsqueeze(-1)
-                # cls_target = F.one_hot(
-                #     gt_matched_classes.to(torch.int64), self.num_classes
-                # )
+                )
+                cls_target = cls_one_hot_target*pred_ious_this_matching.unsqueeze(-1)
 
                 obj_target = fg_mask.unsqueeze(-1)
 
@@ -438,7 +463,7 @@ class YOLOXHeadArc(nn.Module):
                         x_shifts=x_shifts[0][fg_mask],
                         y_shifts=y_shifts[0][fg_mask],
                     )
-
+            cls_one_hot_targets.append(cls_one_hot_target.to(dtype))
             cls_targets.append(cls_target.to(dtype))
             reg_targets.append(reg_target)
             obj_targets.append(obj_target.to(dtype))
@@ -446,6 +471,7 @@ class YOLOXHeadArc(nn.Module):
             if self.use_l1:
                 l1_targets.append(l1_target)
 
+        cls_one_hot_targets = torch.cat(cls_one_hot_targets, 0)
         cls_targets = torch.cat(cls_targets, 0)
         reg_targets = torch.cat(reg_targets, 0)
         obj_targets = torch.cat(obj_targets, 0)
@@ -464,12 +490,16 @@ class YOLOXHeadArc(nn.Module):
 
         '''add arc margin'''
         if self.arc:
-            cosine = cls_preds.view(-1, self.num_classes)[fg_masks]
+            cosine = self.nor_cls_outputs.view(-1, self.num_classes)[fg_masks]
             sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
             phi = cosine * self.cos_m - sine * self.sin_m
-            phi = torch.where(cosine > 0, phi, cosine) # easy margin
 
+            if self.easy_margin:
+                phi = torch.where(cosine > 0, phi, cosine) # easy margin
+            else:
+                phi = torch.where(cosine > self.th, phi, cosine - self.mm)
 
+            # one_hot = cls_one_hot_targets
             one_hot = cls_targets
             # -------------torch.where(out_i = {x_i if condition_i else y_i) -------------
             output = (one_hot * phi) + ((1.0 - one_hot) * cosine)  # you can use torch.where if your torch.__version__ is 0.4
@@ -503,7 +533,6 @@ class YOLOXHeadArc(nn.Module):
             loss_l1,
             num_fg / max(num_gts, 1),
         )
-
         # def focal_loss(self, pred, gt):
         #     pos_inds = gt.eq(1).float()
         #     neg_inds = gt.eq(0).float()
@@ -547,10 +576,10 @@ class YOLOXHeadArc(nn.Module):
             expanded_strides = expanded_strides.cpu().float()
             x_shifts = x_shifts.cpu()
             y_shifts = y_shifts.cpu()
-
+        # 初筛:
         fg_mask, is_in_boxes_and_center = self.get_in_boxes_info(
             gt_bboxes_per_image,
-            expanded_strides,
+            expanded_strides,  # 8...16...32...
             x_shifts,
             y_shifts,
             total_num_anchors,
@@ -580,6 +609,7 @@ class YOLOXHeadArc(nn.Module):
             cls_preds_, obj_preds_ = cls_preds_.cpu(), obj_preds_.cpu()
 
         with torch.cuda.amp.autocast(enabled=False):
+
             cls_preds_ = (
                 cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
                 * obj_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()

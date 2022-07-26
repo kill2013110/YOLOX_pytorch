@@ -101,6 +101,11 @@ class Trainer:
 
         with torch.cuda.amp.autocast(enabled=self.amp_training):
             outputs = self.model(inps, targets)
+            # import cv2
+            # import numpy as np
+            # a=inps
+            # cv2.imshow('1', np.uint8(a.data.to('cpu').numpy()[7].transpose(1, 2, 0)))
+            # cv2.waitKey()
 
         loss = outputs["total_loss"]
 
@@ -337,6 +342,13 @@ class Trainer:
             if self.args.logger == "tensorboard":
                 self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
                 self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
+                # if self.exp.arc:
+                #     for i in range(self.model.head.cls_w.state_dict()['0'].shape[0]):
+                #         self.tblogger.add_histogram(f"train/arc_w/{i}", self.model.head.cls_w.state_dict()['0'][i], self.epoch + 1)
+                # else:
+                for i in range(self.model.head.cls_preds[0].weight.shape[0]):
+                    self.tblogger.add_histogram(f"train/cls_preds/{i}", self.model.head.cls_preds[0].weight[i], self.epoch + 1)
+
             if self.args.logger == "wandb":
                 self.wandb_logger.log_metrics({
                     "val/COCOAP50": ap50,
