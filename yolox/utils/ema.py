@@ -60,5 +60,5 @@ class ModelEMA:
                     if v.shape == msd[k].shape:
                         v += (1.0 - d) * msd[k].detach()
                     else:
-                        print(f'The shape is different: {v}')
+                        print(f'The shape is different: {k}, {v.shape}, {msd[k].shape}')
 

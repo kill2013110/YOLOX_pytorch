@@ -13,14 +13,25 @@ import torch.backends.cudnn as cudnn
 from yolox.core import Trainer, launch
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
-
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
-    parser.add_argument("-expn", "--experiment-name", type=str, default='g_s_mask_416_lr_arc_5_0.5')
+    parser.add_argument("-expn", "--experiment-name", type=str,
+                        # default='g_s_mask_416_lr_arc_5_0.5_ota_arc_no_m',
+                        # default = 'g_s_mask_416_lr_arc_5_0.25_resume40',
+                        # default=None
+    )
+    # parser.add_argument("-describe", "--describe-info", type=str,
+    #                     # default='yolo_archead cls_pred二维 ',
+    #                     # default = 'g_s_mask_416_lr_arc_5_0.25_resume40',
+    #                     default='yolox-s-v3'
+    # )
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
 
     # distributed
+
     parser.add_argument(
         "--dist-backend", default="nccl", type=str, help="distributed backend"
     )
@@ -37,23 +48,27 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask_fl.py',
+        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_test.py',
         type=str,
         help="plz input your experiment description file",
     )
     parser.add_argument(
-        "--resume", default=False, action="store_true", help="resume training"
+        "--resume",
+        # default=True,
+        default=False,
+        action="store_true", help="resume training"
     )
     parser.add_argument("-c", "--ckpt",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\epoch_10_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_org_landmark_test_6points_0.1_strongaug_greater0.9_80coslr\epoch_99_ckpt.pth",
                         default="E:\ocr\container_ocr\YOLOX\weight\yolox_s.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\g_s_mask_416_1lr_no_bias\epoch_30_ckpt.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_mask_416_.1lr_cls_sig_arc_30_.5_mutil_s\epoch_10_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\test_5points_sum\last_epoch_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\\s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.8_autow0.8\epoch_100_ckpt.pth",
                         type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=30,
+        default=101,
         type=int,
         help="resume training start epoch",
     )

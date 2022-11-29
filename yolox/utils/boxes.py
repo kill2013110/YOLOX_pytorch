@@ -28,8 +28,9 @@ def filter_box(output, scale_range):
     keep = (w * h > min_scale * min_scale) & (w * h < max_scale * max_scale)
     return output[keep]
 
-
-def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agnostic=False):
+def postprocess(prediction_all, num_classes, conf_thre=0.7, nms_thre=0.45, class_agnostic=False, get_face_pionts=False):
+    prediction = torch.cat((prediction_all[:, :, :4], prediction_all[:, :, -6-1:]), 2)
+    points_all = prediction_all[:, :, 4:-6-1]
     box_corner = prediction.new(prediction.shape)
     box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
     box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
@@ -50,6 +51,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
         detections = detections[conf_mask]
+        points_i = points_all[i][conf_mask]
         if not detections.size(0):
             continue
 
@@ -69,8 +71,9 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
             )
 
         detections = detections[nms_out_index]
+        points = points_i[nms_out_index]
         if output[i] is None:
-            output[i] = detections
+            output[i] = torch.cat((detections,points),1)
         else:
             output[i] = torch.cat((output[i], detections))
 

@@ -39,6 +39,7 @@ class COCODataset(Dataset):
 
     def __init__(
         self,
+        get_face_pionts=False,
         img_dir=None,
         json_file="instances_train2017.json",
         name="train2017",
@@ -56,6 +57,8 @@ class COCODataset(Dataset):
             preproc: data augmentation strategy
         """
         super().__init__(img_size)
+        self.get_face_pionts=get_face_pionts
+
         # if data_dir is None:
         #     data_dir = os.path.join(get_yolox_datadir(), "COCO")
         # self.data_dir = data_dir
@@ -151,21 +154,49 @@ class COCODataset(Dataset):
             y1 = np.max((0, obj["bbox"][1]))
             x2 = np.min((width, x1 + np.max((0, obj["bbox"][2]))))
             y2 = np.min((height, y1 + np.max((0, obj["bbox"][3]))))
+
+            if self.get_face_pionts:
+                '''
+                'nose_l', 'nose_r',
+               'mouth_l', 'mouth_r',
+               'brow_l', 'brow_r',
+               'eye_l', 'eye_r',
+               'mouth_t', 'mouth_b', 'nose',
+                '''
+
+                all_points = np.array(obj['face_points']).reshape((-1,3))
+                assert len(all_points)==11
+                if self.get_face_pionts==5:
+                    ''''mouth_l, mouth_r, eye_l, eye_r, nose'''
+                    obj['face_points'] = list(all_points[[2,3,6,7,10]].flatten())
+                if self.get_face_pionts==6:
+                    '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b'''
+                    obj['face_points'] = list(all_points[[0,1,2,3,8,9]].flatten())
+
             if obj["area"] > 0 and x2 >= x1 and y2 >= y1:
                 obj["clean_bbox"] = [x1, y1, x2, y2]
                 objs.append(obj)
 
         num_objs = len(objs)
-
-        res = np.zeros((num_objs, 5))
+        if self.get_face_pionts:
+            res = np.zeros((num_objs, 5+self.get_face_pionts*3))
+        else:
+            res = np.zeros((num_objs, 5))
 
         for ix, obj in enumerate(objs):
             cls = self.class_ids.index(obj["category_id"])
             res[ix, 0:4] = obj["clean_bbox"]
+            if self.get_face_pionts:
+                res[ix, 5:] = np.array(obj["face_points"]).flatten()
             res[ix, 4] = cls
+
 
         r = min(self.img_size[0] / height, self.img_size[1] / width)
         res[:, :4] *= r
+        if self.get_face_pionts:
+            res[:, 5::3] *= r
+            res[:, 6::3] *= r
+
 
         img_info = (height, width)
         resized_info = (int(height * r), int(width * r))
@@ -176,7 +207,7 @@ class COCODataset(Dataset):
             else "{:012}".format(id_) + ".jpg"
         )
 
-        return (res, img_info, resized_info, file_name)
+        return (res, img_info, resized_info, file_name) # bbox已经完成resize，但是img还没有
 
     def load_anno(self, index):
         return self.annotations[index][0]

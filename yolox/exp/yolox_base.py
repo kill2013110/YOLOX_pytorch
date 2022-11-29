@@ -29,7 +29,7 @@ class Exp(BaseExp):
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
         # If your training process cost many memory, reduce this value.
-        self.data_num_workers = 4
+        self.data_num_workers = 0
         self.input_size = (640, 640)  # (height, width)
         # Actual multiscale ranges: [640 - 5 * 32, 640 + 5 * 32].
         # To disable multiscale training, set the value to 0.
@@ -80,6 +80,7 @@ class Exp(BaseExp):
         self.scheduler = "yoloxwarmcos"
         # last #epoch to close augmention like mosaic
         self.no_aug_epochs = 15
+        self.min_lr_epochs = self.no_aug_epochs # 默认情况下两者应该相等，但在加入关键点数据训练时不是这样
         # apply EMA during training
         self.ema = True
 
@@ -107,10 +108,19 @@ class Exp(BaseExp):
         self.test_conf = 0.01
         # nms threshold
         self.nmsthre = 0.65
-        self.arc = False
 
+        self.val_batch_size = None
+        self.get_face_pionts = False
+        self.label_th = 0.9,
+        self.ada_pow = 0,
+        self.points_loss = 'Wing',
+        self.points_loss_weight = 0.
+        self.head_type = 'org'
+        self.arc_config = {'arc': None, 's': None, 'm': None}
+        self.var_config = None
     def get_model(self):
-        from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, YOLOXHeadArc
+        from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, YOLOXHeadArc, YOLOXHeadVar, \
+            YOLOXHead_points_branch_2, YOLOXHead_points_branch_1
 
         def init_yolo(M):
             for m in M.modules():
@@ -121,10 +131,28 @@ class Exp(BaseExp):
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            # if self.arc:
-            head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act)
-            # else:
-            #     head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act)
+            if self.head_type == 'org':
+                head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                                 )
+            elif self.head_type == 'arc':
+                head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
+                                    arc_config=self.arc_config)
+            elif self.head_type == 'var':
+                head = YOLOXHeadVar(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
+                                    var_config=self.var_config)
+            elif self.head_type == 'points_branch_1':
+                head = YOLOXHead_points_branch_1(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                                 )
+            elif self.head_type == 'points_branch_2':
+                head = YOLOXHead_points_branch_2(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                                 )
+
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
@@ -132,81 +160,6 @@ class Exp(BaseExp):
         self.model.head.initialize_biases(1e-2)
         self.model.train()
         return self.model
-
-    def get_data_loader(
-        self, batch_size, is_distributed, no_aug=False, cache_img=False
-    ):
-        from yolox.data import (
-            COCODataset,
-            TrainTransform,
-            YoloBatchSampler,
-            DataLoader,
-            InfiniteSampler,
-            MosaicDetection,
-            worker_init_reset_seed,
-        )
-        from yolox.utils import (
-            wait_for_the_master,
-            get_local_rank,
-        )
-
-        local_rank = get_local_rank()
-
-        with wait_for_the_master(local_rank):
-            dataset = COCODataset(
-                img_dir=self.train_img_dir,
-                name=self.name,
-                json_file=self.train_ann,
-                img_size=self.input_size,
-                preproc=TrainTransform(
-                    max_labels=50,
-                    flip_prob=self.flip_prob,
-                    hsv_prob=self.hsv_prob),
-                cache=cache_img,
-            )
-
-        dataset = MosaicDetection(
-            dataset,
-            mosaic=not no_aug,
-            img_size=self.input_size,
-            preproc=TrainTransform(
-                max_labels=120,
-                flip_prob=self.flip_prob,
-                hsv_prob=self.hsv_prob),
-            degrees=self.degrees,
-            translate=self.translate,
-            mosaic_scale=self.mosaic_scale,
-            mixup_scale=self.mixup_scale,
-            shear=self.shear,
-            enable_mixup=self.enable_mixup,
-            mosaic_prob=self.mosaic_prob,
-            mixup_prob=self.mixup_prob,
-        )
-
-        self.dataset = dataset
-
-        if is_distributed:
-            batch_size = batch_size // dist.get_world_size()
-
-        sampler = InfiniteSampler(len(self.dataset), seed=self.seed if self.seed else 0)
-
-        batch_sampler = YoloBatchSampler(
-            sampler=sampler,
-            batch_size=batch_size,
-            drop_last=False,
-            mosaic=not no_aug,
-        )
-
-        dataloader_kwargs = {"num_workers": self.data_num_workers, "pin_memory": True}
-        dataloader_kwargs["batch_sampler"] = batch_sampler
-
-        # Make sure each process has different random seed, especially for 'fork' method.
-        # Check https://github.com/pytorch/pytorch/issues/63311 for more details.
-        dataloader_kwargs["worker_init_fn"] = worker_init_reset_seed
-
-        train_loader = DataLoader(self.dataset, **dataloader_kwargs)
-
-        return train_loader
 
     def random_resize(self, data_loader, epoch, rank, is_distributed):
         tensor = torch.LongTensor(2).cuda()
@@ -236,8 +189,11 @@ class Exp(BaseExp):
             inputs = nn.functional.interpolate(
                 inputs, size=tsize, mode="bilinear", align_corners=False
             )
-            targets[..., 1::2] = targets[..., 1::2] * scale_x
-            targets[..., 2::2] = targets[..., 2::2] * scale_y
+            targets[..., 1:5:2] = targets[..., 1:5:2] * scale_x
+            targets[..., 2:5:2] = targets[..., 2:5:2] * scale_y
+            if self.get_face_pionts:  # outputs: [cls, xc,yc,w,h, [x,y]*6 ]
+                targets[..., 5::3] = targets[..., 5::3] * scale_x
+                targets[..., 6::3] = targets[..., 6::3] * scale_y
         return inputs, targets
 
     def get_optimizer(self, batch_size):
@@ -289,15 +245,95 @@ class Exp(BaseExp):
             self.max_epoch,
             warmup_epochs=self.warmup_epochs,
             warmup_lr_start=self.warmup_lr,
-            no_aug_epochs=self.no_aug_epochs,
+            # no_aug_epochs=self.no_aug_epochs,
+            no_aug_epochs=self.min_lr_epochs,
             min_lr_ratio=self.min_lr_ratio,
         )
         return scheduler
+
+    def get_data_loader(
+        self, batch_size, is_distributed, no_aug=False, cache_img=False
+    ):
+        from yolox.data import (
+            COCODataset,
+            TrainTransform,
+            YoloBatchSampler,
+            DataLoader,
+            InfiniteSampler,
+            MosaicDetection,
+            worker_init_reset_seed,
+        )
+        from yolox.utils import (
+            wait_for_the_master,
+            get_local_rank,
+        )
+
+        local_rank = get_local_rank()
+
+        with wait_for_the_master(local_rank):
+            dataset = COCODataset(
+                get_face_pionts=self.get_face_pionts,
+                img_dir=self.train_img_dir,
+                name=self.name,
+                json_file=self.train_ann,
+                img_size=self.input_size,
+                preproc=TrainTransform(
+                    max_labels=50,
+                    get_face_pionts=self.get_face_pionts,
+                    flip_prob=self.flip_prob,
+                    hsv_prob=self.hsv_prob),
+                cache=cache_img,
+            )
+
+        dataset = MosaicDetection(
+            dataset,
+            mosaic=not no_aug,
+            img_size=self.input_size,
+            preproc=TrainTransform(
+                max_labels=120,
+                get_face_pionts=self.get_face_pionts,
+                flip_prob=self.flip_prob,
+                hsv_prob=self.hsv_prob),
+            degrees=self.degrees,
+            translate=self.translate,
+            mosaic_scale=self.mosaic_scale,
+            mixup_scale=self.mixup_scale,
+            shear=self.shear,
+            enable_mixup=self.enable_mixup,
+            mosaic_prob=self.mosaic_prob,
+            mixup_prob=self.mixup_prob,
+        )
+
+        self.dataset = dataset
+
+        if is_distributed:
+            batch_size = batch_size // dist.get_world_size()
+
+        sampler = InfiniteSampler(len(self.dataset), seed=self.seed if self.seed else 0)
+
+        batch_sampler = YoloBatchSampler(
+            sampler=sampler,
+            batch_size=batch_size,
+            drop_last=False,
+            mosaic=not no_aug,
+        )
+
+        dataloader_kwargs = {"num_workers": self.data_num_workers, "pin_memory": True}
+        dataloader_kwargs["batch_sampler"] = batch_sampler
+
+        # Make sure each process has different random seed, especially for 'fork' method.
+        # Check https://github.com/pytorch/pytorch/issues/63311 for more details.
+        dataloader_kwargs["worker_init_fn"] = worker_init_reset_seed
+
+        train_loader = DataLoader(self.dataset, **dataloader_kwargs)
+
+        return train_loader
 
     def get_eval_loader(self, batch_size, is_distributed, testdev=False, legacy=False):
         from yolox.data import COCODataset, ValTransform
 
         valdataset = COCODataset(
+            get_face_pionts=self.get_face_pionts,
             img_dir=self.val_img_dir,
             json_file=self.val_ann if not testdev else self.test_ann,
             name=self.name if self.name!=None else "val2017" if not testdev else "test2017",
@@ -318,6 +354,8 @@ class Exp(BaseExp):
             "pin_memory": True,
             "sampler": sampler,
         }
+        if self.val_batch_size!=None:
+            batch_size = self.val_batch_size
         dataloader_kwargs["batch_size"] = batch_size
         val_loader = torch.utils.data.DataLoader(valdataset, **dataloader_kwargs)
 
@@ -334,6 +372,7 @@ class Exp(BaseExp):
             nmsthre=self.nmsthre,
             num_classes=self.num_classes,
             testdev=testdev,
+            get_face_pionts=self.get_face_pionts
         )
         return evaluator
 

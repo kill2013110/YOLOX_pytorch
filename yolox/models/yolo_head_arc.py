@@ -24,6 +24,7 @@ class YOLOXHeadArc(nn.Module):
         in_channels=[256, 512, 1024],
         act="silu",
         depthwise=False,
+        arc_config=None,
     ):
         """
         Args:
@@ -45,17 +46,20 @@ class YOLOXHeadArc(nn.Module):
         self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
 
-        self.arc = True
 
-        bias = False
+        self.arc = arc_config['arc']
+        assert isinstance(self.arc, bool)
+
+        self.bias = True
+        self.fea_len = 2
 
         if self.arc:
             # self.obj_arc = True
             # self.cls_arc = True
 
-            bias = False
-            self.s = 5.
-            self.m = 0.5
+            self.bias = False
+            self.s = arc_config['s']
+            self.m = arc_config['m']
             self.cos_m = math.cos(self.m)
             self.sin_m = math.sin(self.m)
             self.th = math.cos(math.pi - self.m)
@@ -88,7 +92,8 @@ class YOLOXHeadArc(nn.Module):
                         ),
                         Conv(
                             in_channels=int(256 * width),
-                            out_channels=int(256 * width),
+                            # out_channels=int(256 * width),
+                            out_channels=self.fea_len,
                             ksize=3,
                             stride=1,
                             act=act,
@@ -117,18 +122,18 @@ class YOLOXHeadArc(nn.Module):
                 )
             )
             self.cls_preds.append(
-                # nn.Linear
                 nn.Conv2d(
-                    in_channels=int(256 * width),
+                    # in_channels=int(256 * width),
+                    in_channels=self.fea_len,
                     out_channels=self.n_anchors * self.num_classes,
                     kernel_size=1,
                     stride=1,
                     padding=0,
-                    bias=bias,
+                    bias=self.bias,
                 )
             )
             self.cls_w.append(
-                nn.Parameter(torch.FloatTensor(self.n_anchors * self.num_classes, int(256 * width)))
+                nn.Parameter(torch.FloatTensor(self.n_anchors * self.num_classes, self.fea_len))
             )
 
             self.reg_preds.append(
@@ -156,29 +161,32 @@ class YOLOXHeadArc(nn.Module):
         # self.Focal_loss_fn = Focalloss()
         # self.cls_loss_fn = nn.CrossEntropyLoss(reduction="none")
         self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
-
         self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
 
         self.l1_loss = nn.L1Loss(reduction="none")
-        self.iou_loss_fn = IOUloss(reduction="none")
+        self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
 
     def initialize_biases(self, prior_prob):
-        if not self.arc:
-            for conv in self.cls_preds:
-                if conv.bias != None:
-                    b = conv.bias.view(self.n_anchors, -1)
-                    b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-                    conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
-
-            for conv in self.obj_preds:
+        # if not self.arc:
+        for conv in self.cls_preds:
+            if conv.bias != None:
                 b = conv.bias.view(self.n_anchors, -1)
                 b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
                 conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
-        else:
+
+        for conv in self.obj_preds:
+            b = conv.bias.view(self.n_anchors, -1)
+            b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
+            conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+        # else:
+
+        try:
             for w in self.cls_w:
                 nn.init.xavier_uniform_(w)
+        except:
+            print('error')
 
     def forward(self, xin, labels=None, imgs=None):
         outputs = []
@@ -208,7 +216,6 @@ class YOLOXHeadArc(nn.Module):
                     self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_preds[k].weight.data, dim=1)
                     # self.cls_preds[k].weight.data = nn.functional.normalize(self.cls_w[k], dim=1).view(self.cls_preds[k].weight.shape)
                     nor_cls_output = self.cls_preds[k](cls_feat_nor)
-
                     self.nor_cls_outputs.append(nor_cls_output.permute(0,2,3,1).reshape(nor_cls_output.shape[0],
                                     -1,self.num_classes))
                     # torch.dot(self.cls_preds[k].weight[0, :, 0, 0], cls_feat_nor[0, :, 0, 0])
@@ -228,7 +235,6 @@ class YOLOXHeadArc(nn.Module):
             else:
                 cls_output = self.cls_preds[k](cls_feat)
                 self.cls_w[k].data = nn.functional.normalize(self.cls_preds[k].weight.data, dim=1)[:,:,0,0]
-
 
             reg_feat = reg_conv(reg_x)
             reg_output = self.reg_preds[k](reg_feat)
@@ -279,7 +285,6 @@ class YOLOXHeadArc(nn.Module):
                 torch.cat(outputs, 1),
                 origin_preds,
                 dtype=xin[0].dtype,
-                # tempt=[cls_outputs, nor_cls_outputs],
             )
         else:
             self.hw = [x.shape[-2:] for x in outputs]
@@ -588,6 +593,7 @@ class YOLOXHeadArc(nn.Module):
 
         bboxes_preds_per_image = bboxes_preds_per_image[fg_mask]
         cls_preds_ = cls_preds[batch_idx][fg_mask]
+        # cls_preds = self.nor_cls_outputs[batch_idx][fg_mask]
         obj_preds_ = obj_preds[batch_idx][fg_mask]
         num_in_boxes_anchor = bboxes_preds_per_image.shape[0]
 
@@ -611,7 +617,8 @@ class YOLOXHeadArc(nn.Module):
         with torch.cuda.amp.autocast(enabled=False):
 
             cls_preds_ = (
-                cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
+                    cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
+                    # (cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1)*self.s).sigmoid_()
                 * obj_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
             )
             pair_wise_cls_loss = F.binary_cross_entropy(

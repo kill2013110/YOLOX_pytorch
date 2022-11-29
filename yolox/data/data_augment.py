@@ -110,6 +110,52 @@ def apply_affine_to_bboxes(targets, target_size, M, scale):
 
     return targets
 
+def apply_affine_to_points(targets, target_size, M, scale, img):
+    num_gts = len(targets)
+    xyscore = targets.copy().reshape(int(targets.shape[1]/3 * num_gts), 3)
+    # warp corner points
+    twidth, theight = target_size
+    corner_points = np.ones((int(targets.shape[1]/3 * num_gts), 3)) #该张图的总点数
+    corner_points[:, :2] = xyscore[:, :2]  # x1y1, x2y2, x1y2, x2y1
+    corner_points = corner_points @ M.T  # apply affine transform
+    corner_points_score = np.hstack((corner_points, xyscore[:, 2].reshape(-1, 1)))
+
+    '''
+points = np.int16(corner_points_score.copy())
+x = np.uint8(img.copy())
+# for n in range(len(coordinate)):
+for i in points:
+    if i[2]!=0:
+        cv2.circle(x, i[:2], 2, color=(0, 255, 0))
+
+    # cv2.circle(x, points[n, i * 3:i * 3 + 2], 2, color=(0, 40 * i, 0))
+    # cv2.rectangle(x, (coordinate[n][0], coordinate[n][1], \
+    #                   coordinate[n][2] - coordinate[n][0], coordinate[n][3] - coordinate[n][1]),
+    #               [255, 255, 0])
+
+cv2.imshow('1', x)
+cv2.waitKey()
+    '''
+    return corner_points_score.reshape(targets.shape)
+    # create new boxes
+    corner_xs = corner_points[:, 0::2]
+    corner_ys = corner_points[:, 1::2]
+    new_bboxes = (
+        np.concatenate(
+            (corner_xs.min(1), corner_ys.min(1), corner_xs.max(1), corner_ys.max(1))
+        )
+        .reshape(4, num_gts)
+        .T
+    )
+
+    # clip boxes
+    new_bboxes[:, 0::2] = new_bboxes[:, 0::2].clip(0, twidth)
+    new_bboxes[:, 1::2] = new_bboxes[:, 1::2].clip(0, theight)
+
+    targets[:, :4] = new_bboxes
+
+    return targets
+
 
 def random_affine(
     img,
@@ -119,6 +165,8 @@ def random_affine(
     translate=0.1,
     scales=0.1,
     shear=10,
+    points=None,
+    get_face_pionts=False
 ):
     M, scale = get_affine_matrix(target_size, degrees, translate, scales, shear)
 
@@ -127,8 +175,9 @@ def random_affine(
     # Transform label coordinates
     if len(targets) > 0:
         targets = apply_affine_to_bboxes(targets, target_size, M, scale)
-
-    return img, targets
+    if get_face_pionts:
+        points = apply_affine_to_points(points, target_size, M, scale, img)
+    return img, targets, points
 
 
 def _mirror(image, boxes, prob=0.5):
@@ -138,6 +187,39 @@ def _mirror(image, boxes, prob=0.5):
         boxes[:, 0::2] = width - boxes[:, 2::-2]
     return image, boxes
 
+def _mirror_face_points(image, boxes, face_pionts, prob=0.5):
+    _, width, _ = image.shape
+    if random.random() < prob:
+        image = image[:, ::-1]
+        boxes[:, 0::2] = width - boxes[:, 2::-2]
+        face_pionts[:, 0::3] = width - face_pionts[:, 0::3]
+        get_face_pionts = int(face_pionts.shape[1]/3)
+        if get_face_pionts == 5:
+            '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'nose'''
+            face_pionts[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]] = face_pionts[:,
+            [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+
+        if get_face_pionts == 6:
+            # '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b''' 6点的左右交换策略
+            face_pionts[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]] = face_pionts[:,
+                                                                   [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+        if get_face_pionts == 11:
+            '''
+            'nose_l', 'nose_r', 
+           'mouth_l', 'mouth_r',
+           'brow_l', 'brow_r',
+           'eye_l', 'eye_r',
+           'mouth_t', 'mouth_b', 'nose',
+            '''
+            face_pionts[:,
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]] = face_pionts[:,
+                                                                                                      [3, 4, 5, 0, 1, 2,
+                                                                                                       9, 10, 11, 6, 7,
+                                                                                                       8, 15, 16, 17,
+                                                                                                       12, 13, 14, 21,
+                                                                                                       22, 23, 18, 19,
+                                                                                                       20]]
+    return image, boxes, face_pionts
 
 def preproc(img, input_size, swap=(2, 0, 1)):
     if len(img.shape) == 3:
@@ -159,16 +241,21 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransform:
-    def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0):
+    def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0, get_face_pionts=False, ):
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
+        self.get_face_pionts = get_face_pionts
 
     def __call__(self, image, targets, input_dim):
         boxes = targets[:, :4].copy()
         labels = targets[:, 4].copy()
+        if self.get_face_pionts:
+            face_pionts = targets[:, 5:].copy()
+            point_num_pergt = int(face_pionts.shape[1] / 3) #每个gt框关键点的个数
+
         if len(boxes) == 0:
-            targets = np.zeros((self.max_labels, 5), dtype=np.float32)
+            targets = np.zeros((self.max_labels, 5+3*point_num_pergt if self.get_face_pionts else 5), dtype=np.float32)
             image, r_o = preproc(image, input_dim)
             return image, targets
 
@@ -179,36 +266,54 @@ class TrainTransform:
         labels_o = targets_o[:, 4]
         # bbox_o: [xyxy] to [c_x,c_y,w,h]
         boxes_o = xyxy2cxcywh(boxes_o)
+        if self.get_face_pionts: # '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b'''
+            face_pionts_o = targets_o[:, 5:]
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
-        image_t, boxes = _mirror(image, boxes, self.flip_prob)
+
+        if self.get_face_pionts:
+            image_t, boxes, face_pionts= _mirror_face_points(image, boxes, face_pionts, self.flip_prob)
+        else:
+            image_t, boxes = _mirror(image, boxes, self.flip_prob)
+
         height, width, _ = image_t.shape
         image_t, r_ = preproc(image_t, input_dim)
         # boxes [xyxy] 2 [cx,cy,w,h]
+        xyxy = boxes.copy() # debug use it
         boxes = xyxy2cxcywh(boxes)
-        boxes *= r_
 
-        mask_b = np.minimum(boxes[:, 2], boxes[:, 3]) > 1
+        boxes *= r_
+        mask_b = np.minimum(boxes[:, 2], boxes[:, 3]) > 1 # only keep box which side length>1
         boxes_t = boxes[mask_b]
         labels_t = labels[mask_b]
+        if self.get_face_pionts:
+            face_pionts[:, 1::3] = face_pionts[:, 1::3]*r_
+            face_pionts[:, 0::3] = face_pionts[:, 0::3]*r_
+            face_pionts = face_pionts[mask_b]
 
-        if len(boxes_t) == 0:
+        if len(boxes_t) == 0: ###啥玩意这步的操作？没看懂,没有面积大于1的gt框为什么这样操作？
             image_t, r_o = preproc(image_o, input_dim)
             boxes_o *= r_o
             boxes_t = boxes_o
             labels_t = labels_o
+            if self.get_face_pionts:
+                face_pionts = face_pionts_o.copy()
+                face_pionts[:, 1::3] = face_pionts_o[:, 1::3]*r_
+                face_pionts[:, 0::3] = face_pionts_o[:, 0::3]*r_
 
         labels_t = np.expand_dims(labels_t, 1)
 
-        targets_t = np.hstack((labels_t, boxes_t))
-        padded_labels = np.zeros((self.max_labels, 5))
+        if self.get_face_pionts:
+            targets_t = np.hstack((labels_t, boxes_t, face_pionts))
+        else:
+            targets_t = np.hstack((labels_t, boxes_t))
+        padded_labels = np.zeros((self.max_labels, 5+3*point_num_pergt if self.get_face_pionts else 5))
         padded_labels[range(len(targets_t))[: self.max_labels]] = targets_t[
             : self.max_labels
-        ]
+        ] # 这一步写的很好
         padded_labels = np.ascontiguousarray(padded_labels, dtype=np.float32)
         return image_t, padded_labels
-
 
 class ValTransform:
     """
@@ -241,3 +346,6 @@ class ValTransform:
             img -= np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
             img /= np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
         return img, np.zeros((1, 5))
+
+if __name__ == '__main__':
+    pass

@@ -6,7 +6,9 @@ import datetime
 import os
 import time
 from loguru import logger
-
+import numpy as np
+np.set_printoptions(suppress=True)
+np.set_printoptions(precision=4)
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
@@ -53,8 +55,7 @@ class Trainer:
         self.data_type = torch.float16 if args.fp16 else torch.float32
         self.input_size = exp.input_size
         self.best_ap = 0
-
-        # metric record
+        self.best_epoch = 0
         self.meter = MeterBuffer(window_size=exp.print_interval)
         self.file_name = os.path.join(exp.output_dir, args.experiment_name)
 
@@ -97,6 +98,24 @@ class Trainer:
         targets = targets.to(self.data_type)
         targets.requires_grad = False
         inps, targets = self.exp.preprocess(inps, targets, self.input_size)
+        '''
+import cv2
+j =1
+coordinate = np.int16(targets[j].cpu().numpy()).copy()
+points = np.int16(targets[j,:,5:].cpu().numpy()).copy()
+x = np.uint8(inps[j].cpu().numpy().transpose(1,2,0)).copy()
+for n in range(len(coordinate)):
+    # cv2.polylines(x, [coordinate[n]], isClosed=True,
+    #               color=[255, 255, 0])
+    for i in range(6):
+        cv2.circle(x, points[n, i * 3:i * 3 + 2], 2, color=(0, 40 * i, 0))
+    cv2.rectangle(x, (coordinate[n][0+1]-int(coordinate[n][2+1]/2), 
+                      coordinate[n][1+1]-int(coordinate[n][3+1]/2), \
+                      coordinate[n][2+1] , coordinate[n][3+1]),
+                  [255, 255, 0])
+cv2.imshow('1', x)
+cv2.waitKey()
+        targets: [cls, cx, cy, w, h, x, y, score...]'''
         data_end_time = time.time()
 
         with torch.cuda.amp.autocast(enabled=self.amp_training):
@@ -198,6 +217,7 @@ class Trainer:
         logger.info(
             "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
         )
+        logger.info(f"best epoch:{self.best_epoch}, ap:{self.best_ap:4f}\n")
         if self.rank == 0:
             if self.args.logger == "wandb":
                 self.wandb_logger.finish()
@@ -218,15 +238,17 @@ class Trainer:
                 self.save_ckpt(ckpt_name="last_mosaic_epoch")
 
     def after_epoch(self):
-        self.save_ckpt(ckpt_name="latest")
+        # self.save_ckpt(ckpt_name="latest")
 
         if (self.epoch + 1) % self.exp.eval_interval == 0:
             all_reduce_norm(self.model)
             self.evaluate_and_save_model()
 
     def before_iter(self):
-        pass
-
+        if self.args.logger == "tensorboard":
+            self.tblogger.add_scalar("lr", self.optimizer.param_groups[0]['lr'],
+                                     self.epoch * self.max_iter + self.iter + 1)
+        # pass
     def after_iter(self):
         """
         `after_iter` contains two parts of logic:
@@ -266,11 +288,18 @@ class Trainer:
 
             if self.rank == 0:
                 if self.args.logger == "tensorboard":
+
                     self.tblogger.add_scalar("train/total_loss", self.meter['total_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
                     self.tblogger.add_scalar("train/iou_loss", self.meter['iou_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
                     self.tblogger.add_scalar("train/conf_loss", self.meter['conf_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
                     self.tblogger.add_scalar("train/cls_loss", self.meter['cls_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
+                    self.tblogger.add_scalar("train/l1_loss", self.meter['l1_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
+                    self.tblogger.add_scalar("train/points_loss", self.meter['points_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
 
+                    for i in range(3):
+                        self.tblogger.add_histogram(f"train/cls_convs/head_{i}",
+                                                    self.model.head.cls_convs[i][0].conv.weight[0],
+                                                    self.epoch * self.max_iter + self.iter + 1)
                 if self.args.logger == "wandb":
                     self.wandb_logger.log_metrics({k: v.latest for k, v in loss_meter.items()})
                     self.wandb_logger.log_metrics({"lr": self.meter["lr"].latest})
@@ -297,9 +326,16 @@ class Trainer:
 
             ckpt = torch.load(ckpt_file, map_location=self.device)
             # resume the model/optimizer state dict
-            model.load_state_dict(ckpt["model"])
+            ckpt_weights_dict = ckpt["model"]
+            p_weights_dict = {k: v for k, v in ckpt_weights_dict.items()
+                                 if model.state_dict()[k].numel() == v.numel()}
+            # print(model.load_state_dict(load_weights_dict, strict=False))
+            model.load_state_dict(p_weights_dict, strict=False)
+            # model.load_state_dict(ckpt["model"])
             self.optimizer.load_state_dict(ckpt["optimizer"])
             self.best_ap = ckpt.pop("best_ap", 0)
+            self.best_epoch = ckpt.pop("best_epoch", 0)
+
             # resume the training states variables
             start_epoch = (
                 self.args.start_epoch - 1
@@ -331,23 +367,58 @@ class Trainer:
                 evalmodel = evalmodel.module
 
         with adjust_status(evalmodel, training=False):
-            ap50_95, ap50, summary = self.exp.eval(
+            cocoeval_stats, summary, res_50, res_75 = self.exp.eval(
                 evalmodel, self.evaluator, self.is_distributed
             )
+        ap50_95, ap50, ap75 = cocoeval_stats[:3]
+        cls_AP, cls_AR = cocoeval_stats[12:12 + self.exp.num_classes], cocoeval_stats[-self.exp.num_classes:]
 
         update_best_ckpt = ap50_95 > self.best_ap
-        self.best_ap = max(self.best_ap, ap50_95)
+        if update_best_ckpt:
+            self.best_ap =ap50_95
+            self.best_epoch = self.epoch + 1
+        '''save ckpt'''
+        self.save_ckpt("last_epoch", update_best_ckpt=update_best_ckpt, ap=ap50_95)
+        if self.save_history_ckpt:
+            self.save_ckpt(f"epoch_{self.epoch + 1}", ap=ap50_95)
 
         if self.rank == 0:
             if self.args.logger == "tensorboard":
-                self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
-                self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
+                summary = summary + f"best epoch:{self.best_epoch}, ap:{self.best_ap:4f}\n"
+                self.tblogger.add_text("val_COCO", summary.replace('\n', '  \n'), self.epoch + 1)
+                self.tblogger.add_scalar("val_COCO/AP@50", ap50, self.epoch + 1)
+                self.tblogger.add_scalar("val_COCO/AP@50:95", ap50_95, self.epoch + 1)
+                self.tblogger.add_scalar("val_COCO/AP@75", ap75, self.epoch + 1)
+
+                self.tblogger.add_scalar("val_cm/MacroF1@50", res_50[-1, -1], self.epoch + 1)
+                self.tblogger.add_scalar("val_cm/MacroF1@75", res_75[-1, -1], self.epoch + 1)
+                self.tblogger.add_scalar("val_cm//Accuracy@50", res_50[-1, -2], self.epoch + 1)
+                self.tblogger.add_scalar("val_cm/Accuracy@75", res_75[-1, -2], self.epoch + 1)
+                self.tblogger.add_text("val_cm/c_matrix@50", str(res_50).replace('\n', '').replace('  ', '&emsp;').replace('] [', '  \n')[2:-2], self.epoch + 1)
+                self.tblogger.add_text("val_cm/c_matrix@75", str(res_75).replace('\n', '').replace('  ', '&emsp;').replace('] [', '  \n')[2:-2], self.epoch + 1)
+
+                for i in range(self.exp.num_classes):
+                    self.tblogger.add_scalar(f"val_cls_AP/{self.exp.cls_names[i]}", cls_AP[i], self.epoch + 1)
+                    self.tblogger.add_scalar(f"val_cls_AR/{self.exp.cls_names[i]}", cls_AR[i], self.epoch + 1)
+
+                    self.tblogger.add_scalar(f"val_cm_F1@50/{self.exp.cls_names[i]}", res_50[i, -1], self.epoch + 1)
+                    self.tblogger.add_scalar(f"val_cm_F1@75/{self.exp.cls_names[i]}", res_75[i, -1], self.epoch + 1)
+
+                    self.tblogger.add_scalar(f"val_cm_Precision@50/{self.exp.cls_names[i]}", res_50[-1, i], self.epoch + 1)
+                    self.tblogger.add_scalar(f"val_cm_Precision@75/{self.exp.cls_names[i]}", res_75[-1, i], self.epoch + 1)
+
+                    self.tblogger.add_scalar(f"val_cm_Recall@50/{self.exp.cls_names[i]}", res_50[i, -2], self.epoch + 1)
+                    self.tblogger.add_scalar(f"val_cm_Recall@75/{self.exp.cls_names[i]}", res_75[i, -2], self.epoch + 1)
+
+
+                # self.tblogger.add_scalar("val/Recall50", ap50_95, self.epoch + 1)
+                # self.tblogger.add_scalar("val/Recall50", ap75, self.epoch + 1)
                 # if self.exp.arc:
                 #     for i in range(self.model.head.cls_w.state_dict()['0'].shape[0]):
                 #         self.tblogger.add_histogram(f"train/arc_w/{i}", self.model.head.cls_w.state_dict()['0'][i], self.epoch + 1)
                 # else:
-                for i in range(self.model.head.cls_preds[0].weight.shape[0]):
-                    self.tblogger.add_histogram(f"train/cls_preds/{i}", self.model.head.cls_preds[0].weight[i], self.epoch + 1)
+                # for i in range(self.model.head.cls_preds[0].weight.shape[0]):
+                #     self.tblogger.add_histogram(f"train/cls_preds/{i}", self.model.head.cls_preds[0].weight[i], self.epoch + 1)
 
             if self.args.logger == "wandb":
                 self.wandb_logger.log_metrics({
@@ -357,20 +428,17 @@ class Trainer:
                 })
             logger.info("\n" + summary)
         synchronize()
-
-        self.save_ckpt("last_epoch", update_best_ckpt)
-        if self.save_history_ckpt:
-            self.save_ckpt(f"epoch_{self.epoch + 1}")
-
-    def save_ckpt(self, ckpt_name, update_best_ckpt=False):
+    def save_ckpt(self, ckpt_name, update_best_ckpt=False, ap=None):
         if self.rank == 0:
             save_model = self.ema_model.ema if self.use_model_ema else self.model
-            logger.info("Save weights to {}".format(self.file_name))
+            logger.info(f"Save weights to {self.file_name} {ckpt_name}")
             ckpt_state = {
                 "start_epoch": self.epoch + 1,
+                "cur_ap": ap,
                 "model": save_model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
                 "best_ap": self.best_ap,
+                "best_epoch": self.best_epoch,
             }
             save_checkpoint(
                 ckpt_state,

@@ -45,17 +45,23 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask_fl.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_test.py',
+        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
         type=str,
         help="pls input your expriment description file",
     )
+    '''
+    yolox_s_mask_org 640 0.6416 0.8397 0.7466
+    s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9   640  0.6423 0.8474 0.7591
+    '''
     parser.add_argument("-c", "--ckpt",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\g_s_mask_416_1lr_no_bias\epoch_40_ckpt.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\alpha2_ciou\epoch_10_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_org_landmark_test_points_0.1_strongaug_greater0.9\epoch_92_ckpt.pth",
+                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\test_5points_mean6\best_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9\best_ckpt.pth",
                         type=str, help="ckpt for eval")
-    parser.add_argument("--conf", default=0.001, type=float, help="test conf")
-    parser.add_argument("--nms", default=None, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=416, type=int, help="test img size")
+    parser.add_argument("--conf", default=0.01, type=float, help="test conf")
+    parser.add_argument("--nms", default=0.65, type=float, help="test nms threshold")
+    parser.add_argument("--tsize", default=640, type=int, help="test img size")
     parser.add_argument("--seed", default=0, type=int, help="eval seed")
     parser.add_argument(
         "--fp16",
@@ -162,6 +168,7 @@ def main(exp, args, num_gpu):
         loc = "cuda:{}".format(rank)
         ckpt = torch.load(ckpt_file, map_location=loc)
         model.load_state_dict(ckpt["model"])
+        logger.info(f" cur_epoch:{ckpt['start_epoch']} best epoch:{ckpt['best_epoch']} best_ap:{ckpt['best_ap']:.4f}  ")
         logger.info("loaded checkpoint done.")
 
     if is_distributed:
@@ -186,11 +193,12 @@ def main(exp, args, num_gpu):
         decoder = None
 
     # start evaluate
-    *_, summary = evaluator.evaluate(
-        model, is_distributed, args.fp16, trt_file, decoder, exp.test_size
+    *_, summary, c_m50, c_m75 = evaluator.evaluate(
+        model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, ckpt_path=ckpt_file
     )
     logger.info("\n" + summary)
-
+    logger.info("\n" + str(c_m50))
+    logger.info("\n" + str(c_m75))
 
 if __name__ == "__main__":
     args = make_parser().parse_args()

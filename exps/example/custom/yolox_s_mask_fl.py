@@ -12,19 +12,23 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-        self.arc = True
+        self.arc_config = {'arc': False, 's': 5, 'm': 0.25}
 
+        self.val_batch_size = 1
 
         # Define yourself dataset path
+        # self.name = ''
+        # self.train_img_dir = r"F:\datasets\Diverse_Masked_Faces_v1\train\pic"
+        # self.train_ann = r"F:\datasets\Diverse_Masked_Faces_v1\annotations/train.json"
+        # self.val_img_dir = r"F:\datasets\Diverse_Masked_Faces_v1\val\pic"
+        # self.val_ann = r"F:\datasets\Diverse_Masked_Faces_v1\annotations/val.json"
+
         self.name = ''
-        self.train_img_dir = r"F:\datasets\Mask_detection\train\pic"
-        # self.train_ann = "face/train.json"
-        self.train_ann = r"F:\datasets\Mask_detection\train.json"
-        self.val_img_dir = r"F:\datasets\Mask_detection\val\pic"
-        self.val_ann = r"F:\datasets\Mask_detection\val.json"
+        self.train_img_dir = r'F:\datasets\Diverse_Masked_Faces_v2_m\new_img'
+        self.train_ann = r"F:\datasets\Diverse_Masked_Faces_v2_m\ann/train_v2.json"
+        self.val_img_dir = r'F:\datasets\Diverse_Masked_Faces_v2_m\new_img'
+        self.val_ann = r"F:\datasets\Diverse_Masked_Faces_v2_m\ann/val_v2.json"
 
-
-        # self.data_dir = "F:\datasets\Mask_detection"
         #
         # self.train_ann = "train.json"
         # # self.train_ann = "val.json"
@@ -37,19 +41,20 @@ class Exp(MyExp):
 
 
         self.input_size = (416, 416)
-        # self.multiscale_range = 5
-        self.random_size = (10, 20)
+        self.multiscale_range = 5
+        # self.random_size = (10, 20)
         self.test_size = self.input_size
-        self.num_classes = 5
-        self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others')
+        self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others', 'spoof')
+        self.num_classes = len(self.cls_names)
+
 
         # self.l
         self.basic_lr_per_img=0.00015625
         # self.basic_lr_per_img=0.00015625/10
 
-        # self.no_aug_epochs = 15
-        self.max_epoch = 55
-        self.data_num_workers = 2
+        self.no_aug_epochs = 15
+        self.max_epoch = 45
+        self.data_num_workers = 4
         self.print_interval = 50
         self.eval_interval = 1
 

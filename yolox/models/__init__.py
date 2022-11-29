@@ -10,3 +10,6 @@ from .yolo_head import YOLOXHead
 from .yolo_head_arc import YOLOXHeadArc
 from .yolo_pafpn import YOLOPAFPN
 from .yolox import YOLOX
+from .yolo_head_var import YOLOXHeadVar
+from  .yolo_head_points_branch_1 import YOLOXHead_points_branch_1
+from  .yolo_head_points_branch_2 import YOLOXHead_points_branch_2
