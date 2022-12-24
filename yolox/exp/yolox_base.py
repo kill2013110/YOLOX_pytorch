@@ -111,9 +111,9 @@ class Exp(BaseExp):
 
         self.val_batch_size = None
         self.get_face_pionts = False
-        self.label_th = 0.9,
-        self.ada_pow = 0,
-        self.points_loss = 'Wing',
+        self.label_th = 0.9
+        self.ada_pow = 0
+        self.points_loss = 'Wing'
         self.points_loss_weight = 0.
         self.head_type = 'org'
         self.arc_config = {'arc': None, 's': None, 'm': None}
@@ -133,7 +133,7 @@ class Exp(BaseExp):
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
             if self.head_type == 'org':
                 head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
                                                  points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
                                                  )
             elif self.head_type == 'arc':
@@ -149,6 +149,16 @@ class Exp(BaseExp):
                                                  )
             elif self.head_type == 'points_branch_2':
                 head = YOLOXHead_points_branch_2(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                                 )
+            elif self.head_type == 'points_branch_3':
+                head = YOLOXHead_points_branch_3(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                                 )
+            elif self.head_type == 'points_branch_4':
+                head = YOLOXHead_points_branch_4(self.num_classes, self.width, in_channels=in_channels, act=self.act,
                                                  get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
                                                  points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
                                                  )

@@ -298,6 +298,19 @@ cv2.waitKey()
                     # '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b''' 6点的左右交换策略
                     cp_points[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]] = cp_points[:,
                     [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+                if get_face_pionts == 8:
+                    '''
+                    'nose_l', 'nose_r', 
+                   'mouth_l', 'mouth_r',
+                   'eye_l', 'eye_r',
+                   'mouth_t', 'mouth_b',
+                    '''
+                    cp_points[:,
+                    [0, 1, 2,  3, 4, 5,  6, 7, 8,  9, 10, 11,  12, 13, 14,  15, 16, 17]] = cp_points[:,
+                                                                                      [3, 4, 5, 0, 1, 2,
+                                                                                       9, 10, 11, 6, 7,
+                                                                                       8, 15, 16, 17,
+                                                                                       12, 13, 14, ]]
                 if get_face_pionts == 11:
                     '''
                     'nose_l', 'nose_r', 

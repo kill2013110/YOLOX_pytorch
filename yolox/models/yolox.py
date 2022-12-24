@@ -47,3 +47,12 @@ class YOLOX(nn.Module):
             outputs = self.head(fpn_outs)
 
         return outputs
+'''
+import cv2
+import numpy as np
+a = x[0,0].cpu().numpy()
+b = np.uint8(a)
+cv2.imwrite('1.jpg',b)
+cv2.imshow('1', b)
+cv2.waitKey()
+'''

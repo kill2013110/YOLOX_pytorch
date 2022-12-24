@@ -1,6 +1,6 @@
-from mmcv.ops import nms
+# from mmcv.ops import nms
 # from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
-import mmcv
+# import mmcv
 import numpy as np
 
 

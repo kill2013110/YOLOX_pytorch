@@ -172,6 +172,14 @@ class COCODataset(Dataset):
                 if self.get_face_pionts==6:
                     '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b'''
                     obj['face_points'] = list(all_points[[0,1,2,3,8,9]].flatten())
+                if self.get_face_pionts==8:
+                    '''
+                    'nose_l', 'nose_r', 
+                   'mouth_l', 'mouth_r',
+                   'eye_l', 'eye_r',
+                   'mouth_t', 'mouth_b',
+                    '''
+                    obj['face_points'] = list(all_points[[0,1,2,3,6,7,8,9]].flatten())
 
             if obj["area"] > 0 and x2 >= x1 and y2 >= y1:
                 obj["clean_bbox"] = [x1, y1, x2, y2]

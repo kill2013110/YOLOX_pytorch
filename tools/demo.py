@@ -25,7 +25,7 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Demo!")
     parser.add_argument(
-        "--demo", default="val", help="demo type, eg. image, video and webcam"
+        "--demo", default="webcam", help="demo type, eg. image, video and webcam"
     )
     parser.add_argument("-expn", "--experiment-name", type=str, default='iou')
     parser.add_argument("-n", "--name", type=str, default='s_container_det_ciou', help="model name")
@@ -61,15 +61,15 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_test.py',
-        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_test.py',
+        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
         type=str,
         help="pls input your experiment description file",
     )
     parser.add_argument("-c", "--ckpt",
                         # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_org_landmark_test_points_0.1_strongaug_greater0.9\best_ckpt.pth",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9\best_ckpt.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\yolox_s_mask_org\best_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9\best_ckpt.pth",
+                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\yolox_s_mask_org\best_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument(
         "--device",
@@ -164,12 +164,13 @@ class Predictor(object):
             img = cv2.imread(img)
             org_img = img.copy()
         else:
+            org_img = img.copy()
             img_info["file_name"] = None
 
         img_info["f"] =None
         if vis:
             height, width, _ = img.shape
-            img_min_side = 720
+            img_min_side = vis
             if width <= height:
                 f = float(img_min_side) / width
                 resized_height = int(f * height)
@@ -206,12 +207,14 @@ class Predictor(object):
                 outputs = self.decoder(outputs, dtype=outputs.type())
             output = postprocess(
                 outputs, self.num_classes, self.confthre,
-                self.nmsthre, class_agnostic=False
+                self.nmsthre,
+                # class_agnostic=False,
+                class_agnostic = True,
             )[0]
             # logger.info(f"Infer time: {time.time() - t0:.4f}s")
         return output, img_info
 
-    def visual(self, output, img_info, cls_conf=0.35):
+    def visual(self, output, img_info, cls_conf=0.35, vis_pos=None):
         img = img_info["raw_img"]
         if output is None:
             return img, [], []
@@ -223,7 +226,7 @@ class Predictor(object):
         cls = output[:, 6]
         scores = output[:, 4] * output[:, 5]
 
-        vis_res, id_list, res_boxes = vis(img, bboxes, scores, cls, cls_conf, self.cls_names, points=points)
+        vis_res, id_list, res_boxes = vis(img, bboxes, scores, cls, cls_conf, self.cls_names, points=points, vis_pos=vis_pos)
         return vis_res, id_list, res_boxes
 
 
@@ -356,6 +359,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
     fps = cap.get(cv2.CAP_PROP_FPS)
     fps_list = []
+    args.save_result=False
     if args.save_result:
         save_folder = os.path.join(
             vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
@@ -374,7 +378,10 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
         ret_val, frame = cap.read()
         if ret_val:
             outputs, img_info = predictor.inference(frame)
-            result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
+            if outputs!=None:
+                result_frame,id_list, res_boxes  = predictor.visual(outputs, img_info, predictor.confthre, vis_pos='up')
+            else:
+                result_frame = img_info['raw_img'].copy()
             if args.save_result:
                 vid_writer.write(result_frame)
             else:
@@ -382,8 +389,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
                 t = time.time()
                 fps_list.append(1 / (t - t0))
                 # print('{:.1f} FPS'.format(1 / (t - t0)))
-                cv2.putText(result_frame, '{:.1f} FPS'.format(1 / (t - t0)), (50, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), thickness=4)
+                # cv2.putText(result_frame, '{:.1f} FPS'.format(1 / (t - t0)), (50, 50),
+                #             cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), thickness=4)
                 cv2.imshow("yolox", result_frame)
             ch = cv2.waitKey(1)
             if ch == 27 or ch == ord("q") or ch == ord("Q"):

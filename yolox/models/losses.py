@@ -22,7 +22,6 @@ class SmoothL1Loss(nn.Module):
         abs_diff = diff.abs()
         l2_flag = (abs_diff.data < 1).float()
         y = l2_flag *torch.square(abs_diff) + (1 - l2_flag) * abs_diff
-        # return (y.sum(1)*weight).view(-1, points_num).sum(1)# 返回加权后每个obj的point损失
         return (y.sum(1) * weight).view(-1, points_num).mean(1) * 6  # 返回加权后每个obj的point损失
 
 class WingLoss(nn.Module):
@@ -34,7 +33,6 @@ class WingLoss(nn.Module):
         self.C = self.w - self.w * np.log(1 + self.w / self.e)
         self.label_th = label_th
         self.ada_pow = ada_pow
-    # def forward(self, pred, target, sigma=1):
     def forward(self, pred, target, sigma=1):
         points_num = int(target.shape[1]/3)
         pred = pred.view(-1, 2)
@@ -45,7 +43,6 @@ class WingLoss(nn.Module):
         abs_diff = diff.abs()
         flag = (abs_diff.data < self.w).float()
         y = flag * self.w * torch.log(1 + abs_diff / self.e) + (1 - flag) * (abs_diff - self.C)
-        # return (y.sum(1)*weight).view(-1, points_num).sum(1)# 返回加权后每个obj的point损失
         return (y.sum(1) * weight).view(-1, points_num).mean(1) * 6  # 返回加权后每个obj的point损失
 
 

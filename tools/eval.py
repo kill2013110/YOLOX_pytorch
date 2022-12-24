@@ -54,14 +54,16 @@ def make_parser():
     yolox_s_mask_org 640 0.6416 0.8397 0.7466
     s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9   640  0.6423 0.8474 0.7591
     '''
+    temp_dir_name = \
+    'yolox_s_mask_var_org star'
     parser.add_argument("-c", "--ckpt",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_org_landmark_test_points_0.1_strongaug_greater0.9\epoch_92_ckpt.pth",
-                        default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\test_5points_mean6\best_ckpt.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9\best_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\yolox_s_mask_var_org star\best_ckpt.pth",
+                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_0.1_strongaug_greater0.9\best_ckpt.pth",
+                        default=rf"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth",
                         type=str, help="ckpt for eval")
     parser.add_argument("--conf", default=0.01, type=float, help="test conf")
     parser.add_argument("--nms", default=0.65, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=640, type=int, help="test img size")
+    parser.add_argument("--tsize", default=416, type=int, help="test img size")
     parser.add_argument("--seed", default=0, type=int, help="eval seed")
     parser.add_argument(
         "--fp16",
@@ -132,13 +134,17 @@ def main(exp, args, num_gpu):
 
     rank = get_local_rank()
 
-    file_name = os.path.join(exp.output_dir, args.experiment_name)
+    if args.ckpt==None:
+        file_name = os.path.join(exp.output_dir, args.experiment_name)
+    else:
+        file_name = os.path.join(exp.output_dir, os.path.dirname(args.ckpt).split('\\')[-1])
 
     if rank == 0:
         os.makedirs(file_name, exist_ok=True)
 
     setup_logger(file_name, distributed_rank=rank, filename="val_log.txt", mode="a")
     logger.info("Args: {}".format(args))
+
 
     if args.conf is not None:
         exp.test_conf = args.conf
@@ -147,6 +153,7 @@ def main(exp, args, num_gpu):
     if args.tsize is not None:
         exp.test_size = (args.tsize, args.tsize)
 
+    logger.info(exp)
     model = exp.get_model()
     logger.info("Model Summary: {}".format(get_model_info(model, exp.test_size)))
     logger.info("Model Structure:\n{}".format(str(model)))
@@ -193,7 +200,7 @@ def main(exp, args, num_gpu):
         decoder = None
 
     # start evaluate
-    *_, summary, c_m50, c_m75 = evaluator.evaluate(
+    coco_results, summary, c_m50, c_m75 = evaluator.evaluate(
         model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, ckpt_path=ckpt_file
     )
     logger.info("\n" + summary)

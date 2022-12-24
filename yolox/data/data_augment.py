@@ -203,6 +203,19 @@ def _mirror_face_points(image, boxes, face_pionts, prob=0.5):
             # '''nose_l, 'nose_r, 'mouth_l, 'mouth_r, 'mouth_t, 'mouth_b''' 6点的左右交换策略
             face_pionts[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]] = face_pionts[:,
                                                                    [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+        if get_face_pionts == 8:
+            '''
+            'nose_l', 'nose_r', 
+           'mouth_l', 'mouth_r',
+           'eye_l', 'eye_r',
+           'mouth_t', 'mouth_b', 'nose',
+            '''
+            face_pionts[:,
+            [0, 1, 2,  3, 4, 5,  6, 7, 8,  9, 10, 11,  12, 13, 14,  15, 16, 17]] = face_pionts[:,
+                                                                                              [3, 4, 5, 0, 1, 2,
+                                                                                               9, 10, 11, 6, 7,
+                                                                                               8, 15, 16, 17,
+                                                                                               12, 13, 14, ]]
         if get_face_pionts == 11:
             '''
             'nose_l', 'nose_r', 

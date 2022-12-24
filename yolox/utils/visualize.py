@@ -7,7 +7,7 @@ import numpy as np
 
 __all__ = ["vis"]
 
-def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None, label=False, points=None):
+def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None, label=False, points=None, vis_pos=None):
     t_size, t_thick = 0.5, 1
     # t_size, t_thick = 0.3, 2
     mask = []
@@ -53,14 +53,18 @@ def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None, label=False, po
 
         txt_size = cv2.getTextSize(text, font, t_size, t_thick)[0]
         txt_bk_color = (_COLORS[class_names[cls_id]] * 255 * 0.7).astype(np.uint8).tolist()
+        if vis_pos == 'up':
+            v_x0, v_y0 = x0, y0-int(1.5*txt_size[1])
+        else:
+            v_x0, v_y0 = x0, y0
         cv2.rectangle(
             img,
-            (x0, y0 + 1),
-            (x0 + txt_size[0] + 1, y0 + int(1.5*txt_size[1])),
+            (v_x0, v_y0 + 1),
+            (v_x0 + txt_size[0] + 1, v_y0 + int(1.5*txt_size[1])),
             txt_bk_color,
             -1
         )
-        cv2.putText(img, text, (x0, y0 + txt_size[1]), font, t_size, txt_color, thickness=t_thick)
+        cv2.putText(img, text, (v_x0, v_y0 + txt_size[1]), font, t_size, txt_color, thickness=t_thick)
         mask.append(cls_id)
         res_boxes.append([x0, y0, x1, y1, class_names[cls_id]])
     return img, mask, res_boxes

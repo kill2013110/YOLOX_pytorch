@@ -12,22 +12,33 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
 
+        '''head'''
         self.seed = 0
+        # self.head_type = 'var'
         # self.head_type = 'org'
-        self.head_type = 'points_branch_2'
+        # self.head_type = 'points_branch_1'
         self.var_config = 'star'
 
-        self.get_face_pionts = 6
+        '''loss'''
+        self.get_face_pionts = 8
         self.points_loss_weight = 0.1
-        self.label_th = 0.9,
-        self.ada_pow = 0,
-        self.points_loss = 'Wing',
+        self.label_th = 0.9
+        self.ada_pow = 0
+        self.points_loss = 'Wing'
 
+        '''lr, aug'''
+        self.aug_epochs = 100
+        self.max_epoch = 120
+        self.no_aug_epochs = self.max_epoch - self.aug_epochs
+        self.min_lr_epochs = self.max_epoch - self.aug_epochs
+        assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
         # yolox_s_mask_org
         # self.exp_name = 'yolox_s_mask_org'
-        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}' \
-                        f'_{self.get_face_pionts}points_{self.points_loss_weight}_strongaug_greater0.9'
-                        # f'_{self.var_config}'
+        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config}' \
+                        f'_{self.get_face_pionts}points_{self.aug_epochs}straug_' \
+                        f'{self.max_epoch - self.min_lr_epochs}coslr' \
+                        # f'_{self.degrees}nor'
+
                         # f'test'
         # self.arc_config = {'arc': False, 's': 5, 'm': 0.25}
 
@@ -67,11 +78,6 @@ class Exp(MyExp):
         self.basic_lr_per_img = 0.00015625
         # self.basic_lr_per_img=0.00015625/10
 
-        self.aug_epochs = 100
-        self.max_epoch = 120
-        self.no_aug_epochs = self.max_epoch - self.aug_epochs
-        # self.min_lr_epochs = self.max_epoch - 80
-        assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
         self.data_num_workers = 3
         self.print_interval = 50
         self.eval_interval = 1

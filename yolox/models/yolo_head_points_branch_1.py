@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from yolox.utils import bboxes_iou, meshgrid
 
-from .losses import IOUloss, WingLoss
+from .losses import IOUloss, WingLoss, SmoothL1Loss
 from .network_blocks import BaseConv, DWConv
 
 
@@ -25,6 +25,9 @@ class YOLOXHead_points_branch_1(nn.Module):
         act="silu",
         depthwise=False,
         get_face_pionts=False,
+        label_th=0.9,
+        ada_pow=0,
+        points_loss='Wing',
         points_loss_weight=0.,
     ):
         """
@@ -146,7 +149,11 @@ class YOLOXHead_points_branch_1(nn.Module):
         self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
         self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
 
-        self.points_loss_fn = WingLoss()
+        assert points_loss in ['SmoothL1', 'Wing']
+        if points_loss == 'Wing':
+            self.points_loss_fn = WingLoss(label_th=label_th, ada_pow=ada_pow)
+        if points_loss == 'SmoothL1':
+            self.points_loss_fn = SmoothL1Loss(label_th=label_th, ada_pow=ada_pow)
         self.l1_loss = nn.L1Loss(reduction="none")
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
