@@ -16,3 +16,4 @@ from  .yolo_head_points_branch_2 import YOLOXHead_points_branch_2
 from  .yolo_head_points_branch_3 import YOLOXHead_points_branch_3
 
 from  .yolo_head_points_branch_1_dconv import YOLOXHead_points_branch_1_dconv
+from  .yolo_head_points_branch_3_dconv import YOLOXHead_points_branch_3_dconv

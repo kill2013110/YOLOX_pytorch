@@ -45,7 +45,6 @@ class Exp(BaseExp):
         self.val_ann = "instances_val2017.json"
         # name of annotation file for testing
         self.test_ann = "instances_test2017.json"
-
         # --------------- transform config ----------------- #
         # prob of applying mosaic aug
         self.mosaic_prob = 1.0
@@ -80,7 +79,7 @@ class Exp(BaseExp):
         self.scheduler = "yoloxwarmcos"
         # last #epoch to close augmention like mosaic
         self.no_aug_epochs = 15
-        self.min_lr_epochs = self.no_aug_epochs # 默认情况下两者应该相等，但在加入关键点数据训练时不是这样
+        self.min_lr_epochs = self.no_aug_epochs  # 默认情况下两者应该相等，但在加入关键点数据训练时不是这样
         # apply EMA during training
         self.ema = True
 
@@ -108,19 +107,27 @@ class Exp(BaseExp):
         self.test_conf = 0.01
         # nms threshold
         self.nmsthre = 0.65
-
+        self.box_loss_weight = 5
+        self.cls_loss_weight = 1
+        self.reg_iou = True
         self.val_batch_size = None
         self.get_face_pionts = False
         self.label_th = 0.9
         self.ada_pow = 0
+        # self.cls_loss = 'VF'
         self.points_loss = 'Wing'
         self.points_loss_weight = 0.
-        self.head_type = 'org'
+        self.head_type = None
         self.arc_config = {'arc': None, 's': None, 'm': None}
         self.var_config = None
+        self.vari_dconv_mask = False
+        self.spp_size = (5, 9, 13)
+        self.Assigner = 'SimOTA'
     def get_model(self):
-        from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, YOLOXHeadArc, YOLOXHeadVar, \
-            YOLOXHead_points_branch_2, YOLOXHead_points_branch_1
+        from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, \
+            YOLOXHead_points_branch_3_dconv,\
+            YOLOXHead_points_branch_1_dconv
+            # YOLOXHead_points_branch_2, YOLOXHead_points_branch_3
 
         def init_yolo(M):
             for m in M.modules():
@@ -130,39 +137,52 @@ class Exp(BaseExp):
 
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
-            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
+            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
             if self.head_type == 'org':
                 head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                                 get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
-                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
-                                                 )
-            elif self.head_type == 'arc':
-                head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
-                                    arc_config=self.arc_config)
-            elif self.head_type == 'var':
-                head = YOLOXHeadVar(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
-                                    var_config=self.var_config)
+                                get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
+                                points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                var_config=self.var_config,
+                                reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                cls_loss_weight=self.cls_loss_weight,
+                                vari_dconv_mask=self.vari_dconv_mask,
+                                 Assigner=self.Assigner,
+                                 )
+            # elif self.head_type == 'arc':
+            #     head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
+            #                         arc_config=self.arc_config)
+            # elif self.head_type == 'var':
+            #     head = YOLOXHeadVar(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
+            #                         var_config=self.var_config)
             elif self.head_type == 'points_branch_1':
-                head = YOLOXHead_points_branch_1(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
-                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                head = YOLOXHead_points_branch_1_dconv(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                        get_face_pionts=self.get_face_pionts,
+                        points_loss_weight=self.points_loss_weight,
+                        points_loss=self.points_loss, ada_pow=self.ada_pow,
+                        label_th=self.label_th, var_config=self.var_config,
+                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                        cls_loss_weight=self.cls_loss_weight,
+                        vari_dconv_mask = self.vari_dconv_mask,
                                                  )
+                # head = YOLOXHead_points_branch_1(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                #                                  get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
+                #                                  points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                #                                  )
             elif self.head_type == 'points_branch_2':
                 head = YOLOXHead_points_branch_2(self.num_classes, self.width, in_channels=in_channels, act=self.act,
                                                  get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
                                                  points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
                                                  )
             elif self.head_type == 'points_branch_3':
-                head = YOLOXHead_points_branch_3(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
-                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
-                                                 )
-            elif self.head_type == 'points_branch_4':
-                head = YOLOXHead_points_branch_4(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                                 get_face_pionts=self.get_face_pionts,points_loss_weight=self.points_loss_weight,
-                                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
-                                                 )
-
+                head = YOLOXHead_points_branch_3_dconv(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                        get_face_pionts=self.get_face_pionts,
+                        points_loss_weight=self.points_loss_weight,
+                        points_loss=self.points_loss, ada_pow=self.ada_pow,
+                        label_th=self.label_th, var_config=self.var_config,
+                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                        cls_loss_weight=self.cls_loss_weight,
+                        vari_dconv_mask=self.vari_dconv_mask,
+                                                       )
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
@@ -213,15 +233,20 @@ class Exp(BaseExp):
             else:
                 lr = self.basic_lr_per_img * batch_size
 
-            pg0, pg1, pg2, arc_w = [], [], [], []  # optimizer parameter groups
+            pg0, pg1, pg2, pg3 = [], [], [], []  # optimizer parameter groups
 
             for k, v in self.model.named_modules():
+                # name_l.append(k)
                 if hasattr(v, "bias") and isinstance(v.bias, nn.Parameter):
                     pg2.append(v.bias)  # biases
                 if isinstance(v, nn.BatchNorm2d) or "bn" in k:
                     pg0.append(v.weight)  # no decay
                 elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
                     pg1.append(v.weight)  # apply decay
+                # else:
+                #     if 'head'in k:
+                #         print('fdsf')
+                #     # print(k, v)
 
             optimizer = torch.optim.SGD(
                 pg0, lr=lr, momentum=self.momentum, nesterov=True
@@ -230,7 +255,9 @@ class Exp(BaseExp):
                 {"params": pg1, "weight_decay": self.weight_decay}
             )  # add pg1 with weight_decay
             optimizer.add_param_group({"params": pg2})
-
+            if self.vari_dconv_mask:
+                pg3.append(self.model.head.dconv_mask)
+                optimizer.add_param_group({"params": pg3, "lr": lr*10.})
             # if self.arc:
             #     # for v in self.model.head.cls_w:
             #     #     arc_w.append(v)

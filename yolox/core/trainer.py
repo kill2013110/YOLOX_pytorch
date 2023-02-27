@@ -296,10 +296,10 @@ cv2.waitKey()
                     self.tblogger.add_scalar("train/l1_loss", self.meter['l1_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
                     self.tblogger.add_scalar("train/points_loss", self.meter['points_loss'].latest, self.epoch *self.max_iter + self.iter + 1)
 
-                    for i in range(3):
-                        self.tblogger.add_histogram(f"train/cls_convs/head_{i}",
-                                                    self.model.head.cls_convs[i][0].conv.weight[0],
-                                                    self.epoch * self.max_iter + self.iter + 1)
+                    # for i in range(3):
+                    #     self.tblogger.add_histogram(f"train/cls_convs/head_{i}",
+                    #                                 self.model.head.cls_convs[i][0].conv.weight[0],
+                    #                                 self.epoch * self.max_iter + self.iter + 1)
                 if self.args.logger == "wandb":
                     self.wandb_logger.log_metrics({k: v.latest for k, v in loss_meter.items()})
                     self.wandb_logger.log_metrics({"lr": self.meter["lr"].latest})

@@ -17,19 +17,17 @@ class Exp(MyExp):
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
-        self.reg_iou = 0
-        # self.Assigner = 'TAL'
-        self.Assigner = 'SimOTA'
+        self.reg_iou = 1
+        self.Assigner = 'TAL'
         # self.head_type = 'var'
-        # self.head_type = 'org'
-        self.head_type = 'points_branch_3'
+        self.head_type = 'org'
+        # self.head_type = 'points_branch_3'
         # self.var_config = 'star'
-        self.var_config = 'star_early'
-        # self.var_config = None
-        self.vari_dconv_mask = True
-        self.get_face_pionts = 8
-        if self.get_face_pionts == 0 : self.head_type = 'org'
-        # assert self.var_config in ['star', 'star_inter', None, '8points']
+        self.var_config = None
+        self.vari_dconv_mask = False
+        self.get_face_pionts = 0
+        if self.get_face_pionts == 0: self.head_type = 'org'
+        assert self.var_config in ['star', 'star_inter', None, '8points']
 
         '''loss'''
         self.cls_loss_weight = 1
@@ -46,9 +44,8 @@ class Exp(MyExp):
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
-        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config}'
+        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config}_mendcode'
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
-        if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'
         if self.vari_dconv_mask: self.exp_name += f'_mask'
         self.exp_name += f'_{self.get_face_pionts}points_{self.aug_epochs}straug' \
                          f'_{self.max_epoch - self.min_lr_epochs}coslr'
@@ -81,8 +78,8 @@ class Exp(MyExp):
         # self.train_ann =path_root + 'ann/train_v3.json'
         # self.val_ann =path_root + 'ann/val_v3.json'
 
-        # self.train_ann = path_root + 'ann/val_v4_11points.json'
-        self.train_ann =path_root + 'ann/train_v3_11points.json'
+        self.train_ann = path_root + 'ann/val_v4_11points.json'
+        # self.train_ann =path_root + 'ann/train_v3_11points.json'
         self.val_ann = path_root + 'ann/val_v4_11points.json'
         # self.val_ann =path_root + 'ann/val_v3_11points.json'
 

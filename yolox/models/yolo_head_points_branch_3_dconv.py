@@ -16,7 +16,7 @@ from .losses import IOUloss, WingLoss, SmoothL1Loss, VariFocalLoss
 from .network_blocks import BaseConv, DWConv
 
 
-class YOLOXHead(nn.Module):
+class YOLOXHead_points_branch_3_dconv(nn.Module):
     def __init__(
         self,
         num_classes,
@@ -35,8 +35,6 @@ class YOLOXHead(nn.Module):
         box_loss_weight=5.,
         cls_loss_weight=1,
         vari_dconv_mask=False,
-        Assigner='SimOTA',
-        TAL_alpha_beta_topk_eps=(1., 6., 13, 1e-09),
     ):
         """
         Args:
@@ -50,8 +48,10 @@ class YOLOXHead(nn.Module):
         self.var_config = var_config
         self.vari_dconv_mask = vari_dconv_mask
         if self.var_config != None and self.vari_dconv_mask == True:
-            self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.ones([9])), requires_grad=True)
-        self.Assigner = Assigner
+            self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.zeros([1, 9, 1, 1])), requires_grad=False)
+            self.dconv_mask[0, 4, 0, 0] = 1
+            self.dconv_mask.requires_grad = True
+        else: self.dconv_mask = None
 
         self.points_loss_weight = points_loss_weight
         self.get_face_pionts = get_face_pionts
@@ -61,9 +61,11 @@ class YOLOXHead(nn.Module):
 
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
-        self.cls_preds = nn.ModuleList()
+        self.points_convs = nn.ModuleList()
 
+        self.cls_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
+        self.points_preds = nn.ModuleList()
         if self.reg_iou:
             self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
@@ -120,6 +122,26 @@ class YOLOXHead(nn.Module):
                     ]
                 )
             )
+            self.points_convs.append(
+                nn.Sequential(
+                    *[
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            ksize=3,
+                            stride=1,
+                            act=act,
+                        ),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            ksize=3,
+                            stride=1,
+                            act=act,
+                        ),
+                    ]
+                )
+            )
             self.cls_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
@@ -134,7 +156,16 @@ class YOLOXHead(nn.Module):
             self.reg_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
-                    out_channels=4+2*self.get_face_pionts,
+                    out_channels= 4,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                )
+            )
+            self.points_preds.append(
+                nn.Conv2d(
+                    in_channels=int(256 * width),
+                    out_channels= 2*self.get_face_pionts,
                     kernel_size=1,
                     stride=1,
                     padding=0,
@@ -151,30 +182,21 @@ class YOLOXHead(nn.Module):
                     )
                 )
 
+
         self.use_l1 = False
-        assert Assigner in ['SimOTA', 'TAL']
-        if Assigner == 'SimOTA':
-            self.get_assignments = self.SimOTA
-        elif Assigner == 'TAL':
-            self.TAL_alpha, self.TAL_beta, self.TAL_topk, self.TAL_eps = TAL_alpha_beta_topk_eps
-            self.get_assignments = self.TaskAlignedAssigner
 
         if reg_iou:
             self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
             self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
         else:
             self.cls_loss_fn = VariFocalLoss()
-        # if box_loss =='CIoU':
         self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
-        if self.get_face_pionts!=0:
-            assert points_loss in ['SmoothL1', 'Wing']
-            if points_loss == 'Wing':
-                self.points_loss_fn = WingLoss(label_th=label_th, ada_pow=ada_pow)
-            if points_loss == 'SmoothL1':
-                self.points_loss_fn = SmoothL1Loss(label_th=label_th, ada_pow=ada_pow)
 
-
-
+        assert points_loss in ['SmoothL1', 'Wing']
+        if points_loss == 'Wing':
+            self.points_loss_fn = WingLoss(label_th=label_th, ada_pow=ada_pow)
+        if points_loss == 'SmoothL1':
+            self.points_loss_fn = SmoothL1Loss(label_th=label_th, ada_pow=ada_pow)
         self.l1_loss = nn.L1Loss(reduction="none")
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
@@ -185,11 +207,13 @@ class YOLOXHead(nn.Module):
                 b = conv.bias.view(self.n_anchors, -1)
                 b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
                 conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
         if self.reg_iou:
             for conv in self.obj_preds:
                 b = conv.bias.view(self.n_anchors, -1)
                 b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
                 conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
 
     def forward(self, xin, labels=None, imgs=None):
         # assert self.get_face_pionts == labels.shape
@@ -199,19 +223,23 @@ class YOLOXHead(nn.Module):
         y_shifts = []
         expanded_strides = []
 
-        for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
-            zip(self.cls_convs, self.reg_convs, self.strides, xin)
+        for k, (cls_conv, reg_conv, stride_this_level, x, points_conv) in enumerate(
+            zip(self.cls_convs, self.reg_convs, self.strides, xin, self.points_convs)
         ):
             x = self.stems[k](x)
             cls_x = x
             reg_x = x
+            points_x = x
 
             reg_feat = reg_conv(reg_x)
             reg_output = self.reg_preds[k](reg_feat)
+            points_feat = points_conv(points_x)
+            points_output = self.points_preds[k](points_feat)
             if self.reg_iou:
                 obj_output = self.obj_preds[k](reg_feat)
             else:
                 obj_output = torch.ones([reg_output.shape[0], 1, *reg_output.shape[2:]]).to(reg_output.device)
+            reg_output = torch.cat([reg_output, points_output], 1)
 
             if self.var_config == None:
                 ''' YOLOX origin Conv style:  '''
@@ -274,7 +302,7 @@ class YOLOXHead(nn.Module):
 
                 elif 'star_inter' in self.var_config:  # 完全插值
                     ''' Star Dconv style:   '''
-                    mnwh = reg_output[:,:4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
+                    mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
                     mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
                     x, y, w, h = torch.chunk(mnwh, 4, dim=1)  # xc, yc的偏移量以及w和h
                     offset = torch.zeros([mnwh.shape[0], 18, *mnwh.shape[2:]], device=mnwh.device)
@@ -323,15 +351,17 @@ class YOLOXHead(nn.Module):
                     assert self.var_config != 'dense star'
                     pass
                 ###############################################################
+            if self.vari_dconv_mask: mask = self.dconv_mask.repeat([cls_x.shape[0], 1, *cls_x.shape[-2:]])
             if 'early' in self.var_config:
-                Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1,)
+                Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1, mask=mask)
                 cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
                 cls_output = self.cls_preds[k](cls_feat)
             elif 'late' in self.var_config:
                 cls_feat_early = cls_conv[0](cls_x)
-                Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1,)
+                Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1, mask=mask)
                 cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
                 cls_output = self.cls_preds[k](cls_feat)
+
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
                 output, grid = self.get_output_and_grid(
@@ -389,7 +419,7 @@ class YOLOXHead(nn.Module):
         grid = self.grids[k]
 
         batch_size = output.shape[0]
-        n_ch = 4+ 2*self.get_face_pionts + 1 + self.num_classes if self.get_face_pionts else 5 + self.num_classes
+        n_ch = 4+ 2*self.get_face_pionts +1 + self.num_classes if self.get_face_pionts else 5 + self.num_classes
         hsize, wsize = output.shape[-2:]
         if grid.shape[2:4] != output.shape[2:4]:
             yv, xv = meshgrid([torch.arange(hsize), torch.arange(wsize)])
@@ -465,7 +495,6 @@ class YOLOXHead(nn.Module):
         obj_targets = []
         points_targets = []
         fg_masks = []
-        fg_iou_metrics = []
 
         num_fg = 0.0
         num_gts = 0.0
@@ -489,14 +518,12 @@ class YOLOXHead(nn.Module):
                     points_per_image = labels[batch_idx, :num_gt, 5:5+self.get_face_pionts*3]
 
                 try:
-                    '''SimOTA or Task Alignment Learning(TAL)'''
                     (
                         gt_matched_classes,
                         fg_mask,
-                        fg_iou_metric,
+                        pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                        all_targets,
                     ) = self.get_assignments(  # noqa
                         batch_idx,
                         num_gt,
@@ -513,7 +540,6 @@ class YOLOXHead(nn.Module):
                         labels,
                         imgs,
                     )
-
                 except RuntimeError as e:
                     # TODO: the string might change, consider a better way
                     if "CUDA out of memory. " not in str(e):
@@ -528,10 +554,9 @@ class YOLOXHead(nn.Module):
                     (
                         gt_matched_classes,
                         fg_mask,
-                        fg_iou_metric,
+                        pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                        all_targets,
                     ) = self.get_assignments(  # noqa
                         batch_idx,
                         num_gt,
@@ -553,12 +578,11 @@ class YOLOXHead(nn.Module):
                 torch.cuda.empty_cache()
                 num_fg += num_fg_img
 
-                cls_target, obj_target, reg_target = all_targets
-                # cls_target = F.one_hot(
-                #     gt_matched_classes.to(torch.int64), self.num_classes
-                # ) * pred_ious_this_matching.unsqueeze(-1)  # 说明YOLOX的cls_score带有iou感知功能
-                # obj_target = fg_mask.unsqueeze(-1)
-                # reg_target = gt_bboxes_per_image[matched_gt_inds]  # 该特征层匹配到的gt索引
+                cls_target = F.one_hot(
+                    gt_matched_classes.to(torch.int64), self.num_classes
+                ) * pred_ious_this_matching.unsqueeze(-1)
+                obj_target = fg_mask.unsqueeze(-1)
+                reg_target = gt_bboxes_per_image[matched_gt_inds] # 该特征层匹配到的gt索引
                 if self.get_face_pionts:
                     points_target = points_per_image[matched_gt_inds]
                 if self.use_l1:
@@ -574,7 +598,6 @@ class YOLOXHead(nn.Module):
             reg_targets.append(reg_target)
             obj_targets.append(obj_target.to(dtype))
             fg_masks.append(fg_mask)
-            fg_iou_metrics.append(fg_iou_metric)
             if self.use_l1:
                 l1_targets.append(l1_target)
             if self.get_face_pionts:
@@ -584,17 +607,13 @@ class YOLOXHead(nn.Module):
         reg_targets = torch.cat(reg_targets, 0)
         obj_targets = torch.cat(obj_targets, 0)
         fg_masks = torch.cat(fg_masks, 0)
-        fg_iou_metrics = torch.cat(fg_iou_metrics, 0)
         if self.use_l1:
             l1_targets = torch.cat(l1_targets, 0)
         if self.get_face_pionts:
             points_targets = torch.cat(points_targets, 0)
         num_fg = max(num_fg, 1)
-        if self.Assigner != 'TAL':
-            fg_iou_metrics = torch.ones_like(fg_iou_metrics)
-        loss_iou = (self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets)*fg_iou_metrics)\
+        loss_iou = (self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets))\
                        .sum() / num_fg
-
         if self.reg_iou:
             loss_obj = (self.obj_loss_fn(obj_preds.view(-1, 1), obj_targets))\
                        .sum() / num_fg
@@ -623,13 +642,14 @@ class YOLOXHead(nn.Module):
 
         return (
             loss,
-            self.box_loss_weight * loss_iou,
+            loss_iou * self.box_loss_weight,
             loss_obj,
             loss_cls*self.cls_loss_weight,
             loss_l1,
             loss_points*self.points_loss_weight,
             num_fg / max(num_gts, 1),
         )
+
 
     def get_l1_target(self, l1_target, gt, stride, x_shifts, y_shifts, eps=1e-8):
         l1_target[:, 0] = gt[:, 0] / stride - x_shifts
@@ -639,7 +659,7 @@ class YOLOXHead(nn.Module):
         return l1_target
 
     @torch.no_grad()
-    def SimOTA(
+    def get_assignments(
         self,
         batch_idx,
         num_gt,
@@ -657,6 +677,7 @@ class YOLOXHead(nn.Module):
         imgs,
         mode="gpu",
     ):
+
         if mode == "cpu":
             print("------------CPU Mode for This Batch-------------")
             gt_bboxes_per_image = gt_bboxes_per_image.cpu().float()
@@ -698,15 +719,10 @@ class YOLOXHead(nn.Module):
             cls_preds_, obj_preds_ = cls_preds_.cpu(), obj_preds_.cpu()
 
         with torch.cuda.amp.autocast(enabled=False):
-            if self.reg_iou:
-                cls_preds_ = (
-                    cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
-                    * obj_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
-                )
-            else:
-                cls_preds_ = (
-                    cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
-                )
+            cls_preds_ = (
+                cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
+                * obj_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
+            )
             pair_wise_cls_loss = F.binary_cross_entropy(
                 cls_preds_.sqrt_(), gt_cls_per_image, reduction="none"
             ).sum(-1)
@@ -732,124 +748,13 @@ class YOLOXHead(nn.Module):
             pred_ious_this_matching = pred_ious_this_matching.cuda()
             matched_gt_inds = matched_gt_inds.cuda()
 
-        cls_target = F.one_hot(
-            gt_matched_classes.to(torch.int64), self.num_classes
-        ) * pred_ious_this_matching.unsqueeze(-1)  # 说明YOLOX的cls_score带有iou感知功能
-        obj_target = fg_mask.unsqueeze(-1)
-        reg_target = gt_bboxes_per_image[matched_gt_inds]  # 该特征层匹配到的gt索引
-
         return (
             gt_matched_classes,
             fg_mask,
             pred_ious_this_matching,
             matched_gt_inds,
             num_fg,
-            (cls_target, obj_target, reg_target)
         )
-    @torch.no_grad()
-    def TaskAlignedAssigner(
-            self,
-            batch_idx,
-            num_gt,
-            total_num_anchors,
-            gt_bboxes_per_image,
-            gt_classes,
-            bboxes_preds_per_image,
-            expanded_strides,
-            x_shifts,
-            y_shifts,
-            cls_preds,
-            bbox_preds,
-            obj_preds,
-            labels,
-            imgs,
-            mode="gpu",
-    ):
-        """
-        对每张图使用TOOD中的TAL进行匹配，代码参考YOLOv6
-        """
-        if mode == "cpu":
-            print("------------CPU Mode for This Batch-------------")
-            gt_bboxes_per_image = gt_bboxes_per_image.cpu().float()
-            bboxes_preds_per_image = bboxes_preds_per_image.cpu().float()
-            gt_classes = gt_classes.cpu().float()
-            expanded_strides = expanded_strides.cpu().float()
-            x_shifts = x_shifts.cpu()
-            y_shifts = y_shifts.cpu()
-
-        """各个函数模块对应YOLO v6中的TAL"""
-        ''' get_pos_mask 函数-------------------------------------------'''
-        # get anchor_align metric
-        overlaps = bboxes_iou(gt_bboxes_per_image, bboxes_preds_per_image, False)
-        if self.reg_iou:
-            cls_preds_score = cls_preds[batch_idx].sigmoid()*obj_preds[batch_idx].sigmoid()
-        else:
-            cls_preds_score = cls_preds[batch_idx].sigmoid()
-        bbox_scores = cls_preds_score[:, gt_classes.to(torch.long)]  ################# 该步存疑，未做验证
-        bbox_scores = bbox_scores.permute(1, 0)
-        align_metric = bbox_scores.pow(self.TAL_alpha) * overlaps.pow(self.TAL_beta)
-
-        # get in_gts mask 锚点在gt框内就算
-        mask_in_gts = self.get_in_boxes_info(
-            gt_bboxes_per_image,
-            expanded_strides,
-            x_shifts,
-            y_shifts,
-            total_num_anchors,
-            num_gt,
-            only_in_gt=True  # TAL 该步要求锚点在GT内部即可，无中心要求
-        )  #### 函数出现过的特殊情况：可能会出现GT框内无锚点，这是因为gt框太细长，夹在锚点们之间
-
-        # get topk_metric mask
-        topk_metrics, topk_idxs = torch.topk(align_metric * mask_in_gts, self.TAL_topk, axis=-1, largest=True)
-        anchor_points_is_topk = torch.zeros([num_gt, total_num_anchors]).to(mask_in_gts.device)
-        for i in range(num_gt):
-            anchor_points_is_topk[i, topk_idxs[i]] = 1.
-        mask_pos = anchor_points_is_topk * mask_in_gts
-        '''get_pos_mask 函数输出 mask_pos, align_metric, overlaps----------'''
-
-        '''select_highest_overlaps 函数-----------------------------------'''
-        """if an anchor box is assigned to multiple gts, the one with the highest iou will be selected."""
-        fg_mask = mask_pos.sum(axis=-2)
-        if fg_mask.max() > 1:
-            mask_multi_gts = (fg_mask.unsqueeze(0) > 1).repeat([num_gt, 1])
-            max_overlaps_idx = overlaps.argmax(axis=0)
-            is_max_overlaps = F.one_hot(max_overlaps_idx, num_gt).to(overlaps.dtype)
-            is_max_overlaps = is_max_overlaps.permute(1, 0)
-            mask_pos = torch.where(mask_multi_gts, is_max_overlaps, mask_pos)
-            fg_mask = mask_pos.sum(axis=-2)
-        target_gt_idx = mask_pos.argmax(axis=-2)
-        '''select_highest_overlaps函数输出 target_gt_idx, fg_mask, mask_pos'''
-
-        ''' get_targets函数--------------------------------------------------'''
-        # assigned target labels
-        target_labels = gt_classes.long().flatten()[target_gt_idx]
-        # assigned target boxes
-        target_bboxes = gt_bboxes_per_image.reshape([-1, 4])[target_gt_idx]
-        # assigned target scores
-        target_scores = F.one_hot(target_labels, self.num_classes)
-        fg_scores_mask = fg_mask[:, None].repeat(1, self.num_classes)
-        target_scores = torch.where(fg_scores_mask > 0, target_scores,
-                                        torch.full_like(target_scores, 0))
-        '''get_targets函数输出target_labels, target_bboxes, target_scores-----'''
-
-        '''normalize'''
-        align_metric *= mask_pos
-        pos_align_metrics = align_metric.max(axis=-1, keepdim=True)[0]
-        pos_overlaps = (overlaps * mask_pos).max(axis=-1, keepdim=True)[0]
-        norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.TAL_eps)).max(-2)[0].unsqueeze(-1)
-        target_scores = target_scores * norm_align_metric
-        ''''''
-        fg_mask = fg_mask.bool()
-        return (
-            target_labels[fg_mask],  # gt_matched_classes,
-            fg_mask,
-            norm_align_metric[fg_mask],
-            target_gt_idx[fg_mask],  # matched_gt_inds,
-            fg_mask.sum(),
-            (target_scores[fg_mask], fg_mask.unsqueeze(-1), target_bboxes[fg_mask]),
-        )
-
 
     def get_in_boxes_info(
         self,
@@ -859,7 +764,6 @@ class YOLOXHead(nn.Module):
         y_shifts,
         total_num_anchors,
         num_gt,
-        only_in_gt=False,
     ):
         expanded_strides_per_image = expanded_strides[0]
         x_shifts_per_image = x_shifts[0] * expanded_strides_per_image
@@ -904,8 +808,6 @@ class YOLOXHead(nn.Module):
 
         is_in_boxes = bbox_deltas.min(dim=-1).values > 0.0
         is_in_boxes_all = is_in_boxes.sum(dim=0) > 0
-        if only_in_gt:
-            return is_in_boxes.to(bbox_deltas.dtype)
         # in fixed center
 
         center_radius = 2.5

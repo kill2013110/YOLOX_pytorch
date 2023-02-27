@@ -5,7 +5,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-
+import torch.nn.functional as F
 class SmoothL1Loss(nn.Module):
     def __init__(self, w=10, e=2, label_th=0.9, ada_pow=0):
         super(SmoothL1Loss, self).__init__()
@@ -45,29 +45,37 @@ class WingLoss(nn.Module):
         y = flag * self.w * torch.log(1 + abs_diff / self.e) + (1 - flag) * (abs_diff - self.C)
         return (y.sum(1) * weight).view(-1, points_num).mean(1) * 6  # 返回加权后每个obj的point损失
 
-
-class Varifocalloss(nn.Module):
+# class VarifocalLoss(nn.Module): ## YOLO v6 实现
+#     def __init__(self):
+#         super(VarifocalLoss, self).__init__()
+#
+#     def forward(self, pred_score, gt_score, label, alpha=0.75, gamma=2.0):
+#
+#         weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
+#         with torch.cuda.amp.autocast(enabled=False):
+#             loss = (F.binary_cross_entropy(pred_score.float(), gt_score.float(), reduction='none') * weight).sum()
+#
+#         return loss
+class VariFocalLoss(nn.Module):
     def __init__(self):
-        super(Varifocalloss, self).__init__()
-    def forward(self, pred, target, alpha=0.25, gamma=2):
+        super(VariFocalLoss, self).__init__()
+    def forward(self, all_pred, target, fg_mask, alpha=0.75, gamma=2.):
+        pred = all_pred[fg_mask]
         assert pred.shape[0] == target.shape[0]
-        assert pred.max() <= 1 and pred.min() >= 0
 
-        alpha_arr = torch.zeros_like(target)
-        alpha_arr[target> 0] = 0.25
-        alpha_arr[target == 0] = (1.-alpha)
-
-        p_arr = torch.zeros_like(target)
-        p_arr[target > 0] = -torch.pow(1-pred[target > 0], gamma) * torch.log(pred[target > 0])
-        p_arr[target == 0] = -torch.pow(pred[target == 0], gamma) * torch.log(1-pred[target == 0])
-
-        loss = alpha_arr*p_arr
+        all_target = torch.zeros_like(all_pred)
+        all_target[fg_mask] = target
+        focal_weight = all_target * (all_target > 0.0).float() + \
+            alpha * all_pred.sigmoid().pow(gamma) * \
+            (all_target <= 0.0).float()
+        loss = F.binary_cross_entropy_with_logits(
+            all_pred, all_target, reduction='none') * focal_weight
         return loss
 
 class Focalloss(nn.Module):
     def __init__(self):
         super(Focalloss, self).__init__()
-    def forward(self, pred, target, alpha=0.25, gamma=2):
+    def forward(self, pred, target, gt_mask, alpha=0.25, gamma=2):
         assert pred.shape[0] == target.shape[0]
         assert pred.max() <= 1 and pred.min() >= 0
 

@@ -48,7 +48,6 @@ class YOLOXHead_points_branch_3(nn.Module):
 
         self.cls_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
-        # if points_branch==1:
         self.points_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
@@ -210,10 +209,9 @@ class YOLOXHead_points_branch_3(nn.Module):
             cls_feat = cls_conv(cls_x)
             cls_output = self.cls_preds[k](cls_feat)
 
-
-            points_feat = points_conv(points_x)
             reg_feat = reg_conv(reg_x)
             reg_output = self.reg_preds[k](reg_feat)
+            points_feat = points_conv(points_x)
             points_output = self.points_preds[k](points_feat)
             obj_output = self.obj_preds[k](reg_feat)
 

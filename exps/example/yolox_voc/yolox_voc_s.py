@@ -11,11 +11,12 @@ from yolox.exp import Exp as MyExp
 class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
+        self.eval_interval = 1
+
         self.num_classes = 20
         self.depth = 0.33
         self.width = 0.50
         self.warmup_epochs = 1
-
         # ---------- transform config ------------ #
         self.mosaic_prob = 1.0
         self.mixup_prob = 1.0

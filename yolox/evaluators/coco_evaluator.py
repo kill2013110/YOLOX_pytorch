@@ -180,7 +180,7 @@ class COCOEvaluator:
                 if is_time_record:
                     start = time.time()
 
-                outputs = model(imgs)  # cv2.imwrite('1.jpg', np.uint8(imgs.cpu().numpy()[0, 0]*255))
+                outputs = model(imgs)
                 if decoder is not None:
                     outputs = decoder(outputs, dtype=outputs.type())
 
@@ -189,7 +189,8 @@ class COCOEvaluator:
                     inference_time += infer_end - start
 
                 output = postprocess(
-                    outputs, self.num_classes, self.confthre, self.nmsthre, class_agnostic=False, get_face_pionts=self.get_face_pionts
+                    outputs, self.num_classes, self.confthre, self.nmsthre, class_agnostic=False,
+                    get_face_pionts=self.get_face_pionts
                 )
                 if is_time_record:
                     nms_end = time_synchronized()
@@ -245,7 +246,7 @@ class COCOEvaluator:
             xyxy_boxes = []
             if output is None:
                 for i in range(self.num_classes):
-                    pre_img_boxes.append(np.zeros(shape=(0,5)))
+                    pre_img_boxes.append(np.zeros(shape=(0, 5)))
                 all_img_boxes.append(pre_img_boxes)
                 continue
             output = output.cpu()
@@ -333,7 +334,8 @@ class COCOEvaluator:
                 json.dump(data_dict, open("./yolox_testdev_2017.json", "w"))
                 cocoDt = cocoGt.loadRes("./yolox_testdev_2017.json")
             else:
-                _, tmp = tempfile.mkstemp()
+                # _, tmp = tempfile.mkstemp()
+                tmp = r'./yoloxtrainevaltmp'
                 json.dump(data_dict, open(tmp, "w"))
                 cocoDt = cocoGt.loadRes(tmp)
             #想设置为训练时调用cpp更高效eval执行
@@ -379,11 +381,12 @@ class COCOEvaluator:
             # print('*'*20+'\n')
             # print(str(np.array(AP_iou_th).round(4)))
             # print('*' * 20 + '\n')
-            if os.path.split(sys.argv[0])[-1] == 'eval.py' and self.confthre>0.1:
+            if os.path.split(sys.argv[0])[-1] == 'eval.py' and self.confthre > 0.15:
+                print(info)
                 '''对于定位，针对每张图分析漏检和误检'''
                 # th_list = [0.5, 0.75]
                 th_list = [0.5,]
-                vised_path = os.path.splitext(ckpt_path)[0] + f'_{self.img_size[0]}_vis'
+                vised_path = os.path.splitext(ckpt_path)[0] + f'_{self.img_size[0]}_vis_{self.confthre}_{self.nmsthre}'
                 for th in th_list:
                     img_p, img_r = {}, {}
                     vised_p_r_img_path = os.path.splitext(ckpt_path)[0]+f'_p_r_{self.img_size[0]}_{th}'
@@ -415,9 +418,9 @@ class COCOEvaluator:
                                     r_info = f'漏检 FN: {img_name} class {cocoEval.cocoGt.cats[int(category_id)]["name"]}'
                                     print(r_info)
                                     f.write(r_info+'\n')
-                                    shutil.copy(os.path.join(vised_path,img_name), os.path.join(vised_p_r_img_path,img_name))
+                                    shutil.copy(os.path.join(vised_path, img_name), os.path.join(vised_p_r_img_path, img_name))
                                 if p_cond:
-                                    p_info = f'  误检 FP: {img_name} class {cocoEval.cocoGt.cats[int(category_id)]["name"]}'
+                                    p_info = f'误检 FP: {img_name} class {cocoEval.cocoGt.cats[int(category_id)]["name"]}'
                                     print(p_info)
                                     f.write(p_info+'\n')
                                     shutil.copy(os.path.join(vised_path,img_name), os.path.join(vised_p_r_img_path,img_name))

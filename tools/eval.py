@@ -3,7 +3,7 @@
 # Copyright (c) Megvii, Inc. and its affiliates.
 
 import argparse
-import os
+import os, socket
 import random
 import warnings
 from loguru import logger
@@ -16,6 +16,13 @@ from yolox.core import launch
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, fuse_model, get_local_rank, get_model_info, setup_logger
 
+print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
+if socket.gethostname() == 'DESKTOP-OMJJ23Q':
+    path_root = r'D:/liwenlong/'
+    data_root = r'D:/liwenlong/Diverse_Masked_Faces_v2_m/'
+else:
+    path_root = r'E:/ocr/container_ocr/'
+    data_root = r'F:/datasets/Diverse_Masked_Faces_v2_m/'
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Eval")
@@ -45,8 +52,8 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default='E:\ocr\container_ocr\YOLOX\exps\example\custom/s_test.py',
-        # default='E:\ocr\container_ocr\YOLOX\exps\example\custom/yolox_s_mask.py',
+        default=path_root + r'YOLOX\exps\example\custom/s_test.py',
+        # default=path_root + r'YOLOX\exps\example\custom/yolox_s_mask.py',
         type=str,
         help="pls input your expriment description file",
     )
@@ -55,11 +62,11 @@ def make_parser():
     s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9   640  0.6423 0.8474 0.7591
     '''
     temp_dir_name = \
-    'yolox_s_mask_var_org star'
+    'yolox_s_mask_org'
     parser.add_argument("-c", "--ckpt",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\yolox_s_mask_var_org star\best_ckpt.pth",
-                        # default=r"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_0.1_strongaug_greater0.9\best_ckpt.pth",
-                        default=rf"E:\ocr\container_ocr\YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth",
+                        # default=path_root + r'YOLOX\tools\YOLOX_outputs\yolox_s_mask_var_org star\best_ckpt.pth',
+                        # default=path_root + r'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_0.1_strongaug_greater0.9\best_ckpt.pth',
+                        default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
                         type=str, help="ckpt for eval")
     parser.add_argument("--conf", default=0.01, type=float, help="test conf")
     parser.add_argument("--nms", default=0.65, type=float, help="test nms threshold")

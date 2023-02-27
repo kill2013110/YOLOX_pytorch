@@ -102,6 +102,7 @@ class CSPDarknet(nn.Module):
         out_features=("dark3", "dark4", "dark5"),
         depthwise=False,
         act="silu",
+        spp_size=(5, 9, 13),
     ):
         super().__init__()
         assert out_features, "please provide output features of Darknet"
@@ -153,7 +154,7 @@ class CSPDarknet(nn.Module):
         # dark5
         self.dark5 = nn.Sequential(
             Conv(base_channels * 8, base_channels * 16, 3, 2, act=act),
-            SPPBottleneck(base_channels * 16, base_channels * 16, activation=act),
+            SPPBottleneck(base_channels * 16, base_channels * 16, activation=act, kernel_sizes=spp_size),
             CSPLayer(
                 base_channels * 16,
                 base_channels * 16,

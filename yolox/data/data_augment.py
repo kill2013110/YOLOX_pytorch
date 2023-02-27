@@ -31,7 +31,12 @@ def augment_hsv(img, hgain=5, sgain=30, vgain=30):
     cv2.cvtColor(img_hsv.astype(img.dtype), cv2.COLOR_HSV2BGR, dst=img)  # no return needed
 
 
-def get_aug_params(value, center=0):
+def get_degree_aug_params(value, center=0., nor=0.3):
+    if value != 10.:
+        return np.clip(np.random.normal(0, nor) * value, -90, 90)
+    else:
+        return random.uniform(center - value, center + value)
+def get_aug_params(value, center=0.,):
     if isinstance(value, float):
         return random.uniform(center - value, center + value)
     elif len(value) == 2:
@@ -53,7 +58,7 @@ def get_affine_matrix(
     twidth, theight = target_size
 
     # Rotation and Scale
-    angle = get_aug_params(degrees)
+    angle = get_degree_aug_params(degrees)
     scale = get_aug_params(scales, center=1.0)
 
     if scale <= 0.0:
@@ -208,7 +213,7 @@ def _mirror_face_points(image, boxes, face_pionts, prob=0.5):
             'nose_l', 'nose_r', 
            'mouth_l', 'mouth_r',
            'eye_l', 'eye_r',
-           'mouth_t', 'mouth_b', 'nose',
+           'mouth_t', 'mouth_b',
             '''
             face_pionts[:,
             [0, 1, 2,  3, 4, 5,  6, 7, 8,  9, 10, 11,  12, 13, 14,  15, 16, 17]] = face_pionts[:,

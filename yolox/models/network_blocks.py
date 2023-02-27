@@ -127,6 +127,7 @@ class SPPBottleneck(nn.Module):
     ):
         super().__init__()
         hidden_channels = in_channels // 2
+        print(f''' {'*'*20} kernel_sizes: {kernel_sizes}{'*'*20}''')
         self.conv1 = BaseConv(in_channels, hidden_channels, 1, stride=1, act=activation)
         self.m = nn.ModuleList(
             [

@@ -28,9 +28,11 @@ def filter_box(output, scale_range):
     keep = (w * h > min_scale * min_scale) & (w * h < max_scale * max_scale)
     return output[keep]
 
-def postprocess(prediction_all, num_classes, conf_thre=0.7, nms_thre=0.45, class_agnostic=False, get_face_pionts=False):
-    prediction = torch.cat((prediction_all[:, :, :4], prediction_all[:, :, -6-1:]), 2)
-    points_all = prediction_all[:, :, 4:-6-1]
+def postprocess(prediction_all, num_classes, conf_thre=0.7, nms_thre=0.45,
+                class_agnostic=False, get_face_pionts=0, return_loc=0):
+    nms_out_index = []
+    prediction = torch.cat((prediction_all[:, :, :4], prediction_all[:, :, -num_classes-1:]), 2)
+    points_all = prediction_all[:, :, 4:-num_classes-1]
     box_corner = prediction.new(prediction.shape)
     box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
     box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
@@ -69,16 +71,35 @@ def postprocess(prediction_all, num_classes, conf_thre=0.7, nms_thre=0.45, class
                 detections[:, 6],
                 nms_thre,
             )
-
+        '''Keep up to the first 300'''
+        nms_out_index = nms_out_index[:300]
         detections = detections[nms_out_index]
         points = points_i[nms_out_index]
         if output[i] is None:
-            output[i] = torch.cat((detections,points),1)
+            output[i] = torch.cat((detections, points), 1)
         else:
             output[i] = torch.cat((output[i], detections))
-
+    if return_loc:
+        return output[0], reduction_loc(conf_mask.argwhere()[nms_out_index].cpu())
     return output
 
+def reduction_loc(loc, input_size=(416,416)):
+    p1_down_size = 8
+    p2_down_size = 16
+    p3_down_size = 32
+    p_down_size = [p1_down_size, p2_down_size, p3_down_size]
+    p_size = [input_size[0]/p1_down_size, input_size[0]/p2_down_size, input_size[0]/p3_down_size]
+    p_num = [(input_size[0]/p1_down_size)**2, (input_size[0]/p2_down_size)**2, (input_size[0]/p3_down_size)**2]
+    p_num = [0, p_num[0], sum(p_num[:2]), sum(p_num)]
+    loc_h = torch.zeros([len(loc), 1])
+    loc_w = torch.zeros([len(loc), 1])
+    # loc_org = torch.zeros([len(loc), 2])
+    for i in range(1, len(p_num)):
+        mask = torch.logical_and(p_num[i-1] < loc, loc <= p_num[i])
+        loc_h[mask] = ((loc[mask]-p_num[i-1])//p_size[i-1]) * p_down_size[i-1]
+        loc_w[mask] = ((loc[mask]-p_num[i-1]) % p_size[i-1]) * p_down_size[i-1]
+    loc_org = torch.cat((loc_h, loc_w), 1)
+    return loc_org
 
 def bboxes_iou(bboxes_a, bboxes_b, xyxy=True):
     if bboxes_a.shape[1] != 4 or bboxes_b.shape[1] != 4:
