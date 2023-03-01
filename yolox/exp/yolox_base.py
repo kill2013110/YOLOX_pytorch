@@ -117,9 +117,9 @@ class Exp(BaseExp):
         # self.cls_loss = 'VF'
         self.points_loss = 'Wing'
         self.points_loss_weight = 0.
-        self.head_type = None
+        self.head_type = 'org'
         self.arc_config = {'arc': None, 's': None, 'm': None}
-        self.var_config = None
+        self.var_config = ''
         self.vari_dconv_mask = False
         self.spp_size = (5, 9, 13)
         self.Assigner = 'SimOTA'
@@ -182,6 +182,7 @@ class Exp(BaseExp):
                         reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
                         cls_loss_weight=self.cls_loss_weight,
                         vari_dconv_mask=self.vari_dconv_mask,
+                       Assigner=self.Assigner,
                                                        )
             self.model = YOLOX(backbone, head)
 

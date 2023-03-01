@@ -35,6 +35,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         box_loss_weight=5.,
         cls_loss_weight=1,
         vari_dconv_mask=False,
+        Assigner='SimOTA'
     ):
         """
         Args:
