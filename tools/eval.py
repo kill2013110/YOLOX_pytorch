@@ -62,7 +62,7 @@ def make_parser():
     s_test_points_branch_1_landmark_test_6points_0.1_strongaug_greater0.9   640  0.6423 0.8474 0.7591
     '''
     temp_dir_name = \
-    'yolox_s_mask_org'
+    '3090branch3_None_8points_100_100_0.05greater0.9_wing_IACS'
     parser.add_argument("-c", "--ckpt",
                         # default=path_root + r'YOLOX\tools\YOLOX_outputs\yolox_s_mask_var_org star\best_ckpt.pth',
                         # default=path_root + r'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_0.1_strongaug_greater0.9\best_ckpt.pth',

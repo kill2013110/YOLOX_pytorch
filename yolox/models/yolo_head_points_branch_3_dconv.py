@@ -30,7 +30,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         ada_pow=0,
         points_loss='Wing',
         points_loss_weight=0.,
-        var_config=None,
+        var_config='',
         reg_iou=True,
         box_loss_weight=5.,
         cls_loss_weight=1,
@@ -47,10 +47,12 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         self.reg_iou = reg_iou
         self.var_config = var_config
         self.vari_dconv_mask = vari_dconv_mask
-        if self.var_config != None and self.vari_dconv_mask == True:
+        if self.var_config != '' and self.vari_dconv_mask == True:
             self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.zeros([1, 9, 1, 1])), requires_grad=False)
             self.dconv_mask[0, 4, 0, 0] = 1
             self.dconv_mask.requires_grad = True
+            logger.info('dconv mask init state:')
+            logger.info(self.dconv_mask)
         else: self.dconv_mask = None
 
         self.points_loss_weight = points_loss_weight
@@ -145,9 +147,8 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
             self.cls_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
-                    # in_channels=2,
                     out_channels=self.n_anchors * self.num_classes,
-                    kernel_size=1,
+                    kernel_size=3 if 'last' in self.var_config else 1,
                     stride=1,
                     padding=0,
                     # bias=False,
@@ -241,12 +242,27 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                 obj_output = torch.ones([reg_output.shape[0], 1, *reg_output.shape[2:]]).to(reg_output.device)
             reg_output = torch.cat([reg_output, points_output], 1)
 
-            if self.var_config == None:
+            if self.var_config == '':
                 ''' YOLOX origin Conv style:  '''
                 cls_feat = cls_conv(cls_x)
                 cls_output = self.cls_preds[k](cls_feat)
             ###############################################################
             else:
+                if '0offset' in self.var_config:
+                    mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
+                    mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
+                    x, y, w, h = torch.chunk(mnwh, 4, dim=1)  # xc, yc的偏移量以及w和h
+                    offset = torch.zeros([mnwh.shape[0], 18, *mnwh.shape[2:]], device=mnwh.device)
+                    # 无位移的3*3 Dconv
+                    '''经此对比试验，确认每个点的偏移量不是相对中心点'''
+                    # 第一列:x-1  第三列:x+1
+                    offset[:, 0::6] = 0-1
+                    offset[:, 4::6] = 0+1
+
+                    # 第一行:y-1 第三行:y+1
+                    offset[:, 1:6:2] = 0-1
+                    offset[:, 13:18:2] = 0+1  # 也可写作 offset[:, 13::2] = y+h/2
+
                 if '8points' in self.var_config:  # 8个关键点 + 特征点
                     assert points_output.shape[1] == 8 * 2
                     ''' 8points Dconv style
@@ -263,16 +279,6 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     '''
                     xy_points = points_output.clone()
                     offset = torch.zeros([xy_points.shape[0], 3 * 3 * 2, *xy_points.shape[2:]], device=xy_points.device)
-
-                    # 无位移的3*3 Dconv
-                    '''经此对比试验，确认每个点的偏移量不是相对中心点'''
-                    # # 第一列:x-1  第三列:x+1
-                    # offset[:, 0::6] = 0-1
-                    # offset[:, 4::6] = 0+1
-                    #
-                    # # 第一行:y-1 第三行:y+1
-                    # offset[:, 1:6:2] = 0-1
-                    # offset[:, 13:18:2] = 0+1 # 也可写作 offset[:, 13::2] = y+h/2
 
                     offset[:, 0:8] = xy_points[:, [8, 9, 12, 13, 10, 11, 0, 1]]  #
                     offset[:, 10:] = xy_points[:, [2, 3, 4, 5, 14, 15, 6, 7]]
@@ -351,17 +357,21 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     assert self.var_config != 'dense star'
                     pass
                 ###############################################################
-            if self.vari_dconv_mask: mask = self.dconv_mask.repeat([cls_x.shape[0], 1, *cls_x.shape[-2:]])
-            if 'early' in self.var_config:
-                Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1, mask=mask)
-                cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
-                cls_output = self.cls_preds[k](cls_feat)
-            elif 'late' in self.var_config:
-                cls_feat_early = cls_conv[0](cls_x)
-                Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1, mask=mask)
-                cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
-                cls_output = self.cls_preds[k](cls_feat)
-
+                if self.vari_dconv_mask: mask = self.dconv_mask.repeat([cls_x.shape[0], 1, *cls_x.shape[-2:]])
+                else: mask = self.dconv_mask
+                if 'early' in self.var_config:
+                    Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1, mask=mask)
+                    cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
+                    cls_output = self.cls_preds[k](cls_feat)
+                elif 'late' in self.var_config:
+                    cls_feat_early = cls_conv[0](cls_x)
+                    Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1, mask=mask)
+                    cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
+                    cls_output = self.cls_preds[k](cls_feat)
+                elif 'last' in self.var_config:
+                    cls_feat = cls_conv(cls_x)
+                    cls_output = deform_conv2d(cls_feat, offset, self.cls_preds[k].weight, padding=1, mask=mask)
+                    # cls_output = self.cls_preds[k](cls_feat)
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
                 output, grid = self.get_output_and_grid(

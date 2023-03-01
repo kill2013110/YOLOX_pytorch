@@ -30,7 +30,7 @@ class YOLOXHead(nn.Module):
         ada_pow=0,
         points_loss='Wing',
         points_loss_weight=0.,
-        var_config=None,
+        var_config='',
         reg_iou=True,
         box_loss_weight=5.,
         cls_loss_weight=1,
@@ -49,9 +49,13 @@ class YOLOXHead(nn.Module):
         self.reg_iou = reg_iou
         self.var_config = var_config
         self.vari_dconv_mask = vari_dconv_mask
-        if self.var_config != None and self.vari_dconv_mask == True:
-            self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.ones([9])), requires_grad=True)
-        self.Assigner = Assigner
+        if self.var_config != '' and self.vari_dconv_mask == True:
+            self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.zeros([1, 9, 1, 1])), requires_grad=False)
+            self.dconv_mask[0, 4, 0, 0] = 1
+            self.dconv_mask.requires_grad = True
+            logger.info('dconv mask init state:')
+            logger.info(self.dconv_mask)
+        else: self.dconv_mask = None
 
         self.points_loss_weight = points_loss_weight
         self.get_face_pionts = get_face_pionts
@@ -123,9 +127,8 @@ class YOLOXHead(nn.Module):
             self.cls_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
-                    # in_channels=2,
                     out_channels=self.n_anchors * self.num_classes,
-                    kernel_size=1,
+                    kernel_size=3 if 'last' in self.var_config else 1,
                     stride=1,
                     padding=0,
                     # bias=False,
@@ -166,7 +169,7 @@ class YOLOXHead(nn.Module):
             self.cls_loss_fn = VariFocalLoss()
         # if box_loss =='CIoU':
         self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
-        if self.get_face_pionts!=0:
+        if self.get_face_pionts != 0:
             assert points_loss in ['SmoothL1', 'Wing']
             if points_loss == 'Wing':
                 self.points_loss_fn = WingLoss(label_th=label_th, ada_pow=ada_pow)
@@ -213,12 +216,27 @@ class YOLOXHead(nn.Module):
             else:
                 obj_output = torch.ones([reg_output.shape[0], 1, *reg_output.shape[2:]]).to(reg_output.device)
 
-            if self.var_config == None:
+            if self.var_config == '':
                 ''' YOLOX origin Conv style:  '''
                 cls_feat = cls_conv(cls_x)
                 cls_output = self.cls_preds[k](cls_feat)
-            ###############################################################
             else:
+                #######################计算偏移量############################
+                if '0offset' in self.var_config:
+                    mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
+                    mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
+                    x, y, w, h = torch.chunk(mnwh, 4, dim=1)  # xc, yc的偏移量以及w和h
+                    offset = torch.zeros([mnwh.shape[0], 18, *mnwh.shape[2:]], device=mnwh.device)
+                    # 无位移的3*3 Dconv
+                    '''经此对比试验，确认每个点的偏移量不是相对中心点'''
+                    # 第一列:x-1  第三列:x+1
+                    offset[:, 0::6] = 0-1
+                    offset[:, 4::6] = 0+1
+
+                    # 第一行:y-1 第三行:y+1
+                    offset[:, 1:6:2] = 0-1
+                    offset[:, 13:18:2] = 0+1  # 也可写作 offset[:, 13::2] = y+h/2
+
                 if '8points' in self.var_config:  # 8个关键点 + 特征点
                     assert points_output.shape[1] == 8 * 2
                     ''' 8points Dconv style
@@ -323,15 +341,24 @@ class YOLOXHead(nn.Module):
                     assert self.var_config != 'dense star'
                     pass
                 ###############################################################
-            if 'early' in self.var_config:
-                Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1,)
-                cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
-                cls_output = self.cls_preds[k](cls_feat)
-            elif 'late' in self.var_config:
-                cls_feat_early = cls_conv[0](cls_x)
-                Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1,)
-                cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
-                cls_output = self.cls_preds[k](cls_feat)
+
+                #######################根据偏移量进行可变形卷积###################
+                if self.vari_dconv_mask: mask = self.dconv_mask.repeat([cls_x.shape[0], 1, *cls_x.shape[-2:]])
+                else: mask = self.dconv_mask
+                if 'early' in self.var_config:
+                    Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1, mask=mask)
+                    cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
+                    cls_output = self.cls_preds[k](cls_feat)
+                elif 'late' in self.var_config:
+                    cls_feat_early = cls_conv[0](cls_x)
+                    Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1, mask=mask)
+                    cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
+                    cls_output = self.cls_preds[k](cls_feat)
+                elif 'last' in self.var_config:
+                    cls_feat = cls_conv(cls_x)
+                    cls_output = deform_conv2d(cls_feat, offset, self.cls_preds[k].weight, padding=1, mask=mask)
+                ############################################################
+
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
                 output, grid = self.get_output_and_grid(
@@ -590,9 +617,9 @@ class YOLOXHead(nn.Module):
         if self.get_face_pionts:
             points_targets = torch.cat(points_targets, 0)
         num_fg = max(num_fg, 1)
-        if self.Assigner != 'TAL':
-            fg_iou_metrics = torch.ones_like(fg_iou_metrics)
-        loss_iou = (self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets)*fg_iou_metrics)\
+        # if self.Assigner != 'TAL':
+        #     fg_iou_metrics = torch.ones_like(fg_iou_metrics)
+        loss_iou = (self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets))\
                        .sum() / num_fg
 
         if self.reg_iou:
