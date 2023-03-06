@@ -32,9 +32,9 @@ def augment_hsv(img, hgain=5, sgain=30, vgain=30):
 
 
 def get_degree_aug_params(value, center=0., nor=0.3):
-    if value != 10.:
-        return np.clip(np.random.normal(0, nor) * value, -90, 90)
-    else:
+    # if value != 10.:
+    #     return np.clip(np.random.normal(0, nor) * value, -90, 90)
+    # else:
         return random.uniform(center - value, center + value)
 def get_aug_params(value, center=0.,):
     if isinstance(value, float):

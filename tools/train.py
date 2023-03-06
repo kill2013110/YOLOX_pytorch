@@ -62,22 +62,23 @@ def make_parser():
     # 0.1987ashdlihasldh
     parser.add_argument(
         "--resume",
-        # default=True,
-        default=False,
+        default=True,
+        # default=False,
         action="store_true", help="resume training"
     )
     temp_dir_name = \
-        's_test_points_branch_3_star_8points_100straug_100coslr_0.05_greater0.9_Wing_IACS'
+        's_test_points_branch_3_star_8points_last_8points_100straug_100coslr_0.05_greater0.9_Wing_0.0deg_IACS'
     parser.add_argument("-c", "--ckpt",
                         # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
-                        default=path_root + 'YOLOX\weight\yolox_s.pth',
+                        default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
+                        # default=path_root + 'YOLOX\weight\yolox_s.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9\best_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9\epoch_99_ckpt.pth',
                         type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=0,
+        default=102,
         type=int,
         help="resume training start epoch",
     )

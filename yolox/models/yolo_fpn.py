@@ -5,8 +5,12 @@
 import torch
 import torch.nn as nn
 
-from .darknet import Darknet
-from .network_blocks import BaseConv
+try:
+    from .darknet import Darknet
+    from .network_blocks import BaseConv
+except:
+    from darknet import Darknet
+    from network_blocks import BaseConv
 
 
 class YOLOFPN(nn.Module):
@@ -82,3 +86,8 @@ class YOLOFPN(nn.Module):
 
         outputs = (out_dark3, out_dark4, x0)
         return outputs
+if __name__ == "__main__":
+    import torch
+    net = YOLOFPN()
+    a = net(torch.randn([4, 3, 416, 416]))
+    print('123')

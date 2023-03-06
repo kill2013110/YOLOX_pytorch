@@ -30,7 +30,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         ada_pow=0,
         points_loss='Wing',
         points_loss_weight=0.,
-        var_config='',
+        var_config=[None, None],
         reg_iou=True,
         box_loss_weight=5.,
         cls_loss_weight=1,
@@ -48,14 +48,16 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         self.reg_iou = reg_iou
         self.var_config = var_config
         self.vari_dconv_mask = vari_dconv_mask
-        if self.var_config != '' and self.vari_dconv_mask == True:
+        if self.var_config[0] != None and self.vari_dconv_mask == True:
             self.dconv_mask = torch.nn.Parameter(torch.FloatTensor(torch.zeros([1, 9, 1, 1])), requires_grad=False)
             self.dconv_mask[0, 4, 0, 0] = 1
             self.dconv_mask.requires_grad = True
             logger.info('dconv mask init state:')
             logger.info(self.dconv_mask)
         else: self.dconv_mask = None
-
+        if self.var_config[0] == 'star_8points':
+            self.cls_12_6 = nn.ModuleList()
+            self.cls_preds1 = nn.ModuleList()
         self.points_loss_weight = points_loss_weight
         self.get_face_pionts = get_face_pionts
         self.n_anchors = 1
@@ -69,6 +71,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
         self.cls_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
         self.points_preds = nn.ModuleList()
+
         if self.reg_iou:
             self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
@@ -145,16 +148,49 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     ]
                 )
             )
-            self.cls_preds.append(
-                nn.Conv2d(
-                    in_channels=int(256 * width),
-                    out_channels=self.n_anchors * self.num_classes,
-                    kernel_size=3 if 'last' in self.var_config else 1,
-                    stride=1,
-                    padding=0,
-                    # bias=False,
+
+            if self.var_config[0] == 'star_8points':
+                self.cls_preds.append(
+                    nn.Conv2d(
+                        in_channels=int(256 * width),
+                        out_channels=self.n_anchors * self.num_classes,
+                        kernel_size=3 if 'last' == self.var_config[1] else 1,
+                        stride=1,
+                        padding=1,
+                        # bias=False,
+                    )
                 )
-            )
+                self.cls_preds1.append(
+                    nn.Conv2d(
+                        in_channels=int(256 * width),
+                        out_channels=self.n_anchors * self.num_classes,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        # bias=False,
+                    )
+                )
+                self.cls_12_6.append(
+                    nn.Conv2d(
+                        in_channels=int(12),
+                        out_channels=self.num_classes,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        # bias=False,
+                    )
+                )
+            else:
+                self.cls_preds.append(
+                    nn.Conv2d(
+                        in_channels=int(256 * width),
+                        out_channels=self.n_anchors * self.num_classes,
+                        kernel_size=3 if 'last' == self.var_config[1] else 1,
+                        stride=1,
+                        padding=0,
+                        # bias=False,
+                    )
+                )
             self.reg_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
@@ -186,7 +222,8 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
 
 
         self.use_l1 = False
-
+        if 'star_8points' == var_config[0]:
+            pass
         if reg_iou:
             self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
             self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
@@ -243,13 +280,13 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                 obj_output = torch.ones([reg_output.shape[0], 1, *reg_output.shape[2:]]).to(reg_output.device)
             reg_output = torch.cat([reg_output, points_output], 1)
 
-            if self.var_config == '':
+            if self.var_config[0] == None:
                 ''' YOLOX origin Conv style:  '''
                 cls_feat = cls_conv(cls_x)
                 cls_output = self.cls_preds[k](cls_feat)
             ###############################################################
             else:
-                if '0offset' in self.var_config:
+                if '0offset' == self.var_config[0]:
                     mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
                     mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
                     x, y, w, h = torch.chunk(mnwh, 4, dim=1)  # xc, yc的偏移量以及w和h
@@ -264,7 +301,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     offset[:, 1:6:2] = 0-1
                     offset[:, 13:18:2] = 0+1  # 也可写作 offset[:, 13::2] = y+h/2
 
-                if '8points' in self.var_config:  # 8个关键点 + 特征点
+                elif '8points' == self.var_config[0]:  # 8个关键点 + 特征点
                     assert points_output.shape[1] == 8 * 2
                     ''' 8points Dconv style
                     8points_output:
@@ -279,20 +316,20 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                         4,5  14,15  6,7
                     '''
                     xy_points = points_output.clone()
-                    offset = torch.zeros([xy_points.shape[0], 3 * 3 * 2, *xy_points.shape[2:]], device=xy_points.device)
+                    point_offset = torch.zeros([xy_points.shape[0], 3 * 3 * 2, *xy_points.shape[2:]], device=xy_points.device)
 
-                    offset[:, 0:8] = xy_points[:, [8, 9, 12, 13, 10, 11, 0, 1]]  #
-                    offset[:, 10:] = xy_points[:, [2, 3, 4, 5, 14, 15, 6, 7]]
+                    point_offset[:, 0:8] = xy_points[:, [8, 9, 12, 13, 10, 11, 0, 1]]  #
+                    point_offset[:, 10:] = xy_points[:, [2, 3, 4, 5, 14, 15, 6, 7]]
 
                     # 第一列:x- w/2  第三列:x+ w/2
                     offset[:, 0::6] += 1
-                    offset[:, 4::6] -= 1
+                    point_offset[:, 4::6] -= 1
 
                     # 第一行:y- h/2 第三行:y+ h/2
                     offset[:, 1:6:2] += 1
                     offset[:, 13:18:2] -= 1  # 也可写作 offset[:, 13::2] = y+h/2-1
 
-                elif 'star' in self.var_config:  # VFNet论文中
+                elif 'star' == self.var_config[0]:  # VFNet论文中
                     ''' Star Dconv style:   '''
                     mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
                     mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
@@ -307,7 +344,7 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     offset[:, 1:6:2] = y - h / 2 + 1
                     offset[:, 13:18:2] = y + h / 2 - 1  # 也可写作 offset[:, 13::2] = y+h/2-1
 
-                elif 'star_inter' in self.var_config:  # 完全插值
+                elif 'star_inter' == self.var_config[0]:  # 完全插值
                     ''' Star Dconv style:   '''
                     mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
                     mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
@@ -353,26 +390,82 @@ class YOLOXHead_points_branch_3_dconv(nn.Module):
                     cv2.imshow('1',img)
                     cv2.waitKey()
                     '''
-                elif 'dense star' in self.var_config:
+                elif 'dense star' == self.var_config[0]:
                     ''' Dense Star Dconv style:   '''
                     assert self.var_config != 'dense star'
                     pass
-                ###############################################################
+                elif 'star_8points' == self.var_config[0]:
+                    ''' star_8points Dconv style:   '''
+
+                    ''' Star Dconv style:   '''
+                    mnwh = reg_output[:, :4].clone()  # 注意m,n指的是第m行，第n列的特征点的位置,那该特征点位置为(n, m)
+                    mnwh[:, 2:4] = torch.exp(mnwh[:, 2:4])
+                    x, y, w, h = torch.chunk(mnwh, 4, dim=1)  # xc, yc的偏移量以及w和h
+                    star_offset = torch.zeros([mnwh.shape[0], 18, *mnwh.shape[2:]], device=mnwh.device)
+
+                    # 第一列:x- w/2  第三列:x+ w/2
+                    star_offset[:, 0::6] = x - w / 2 + 1
+                    star_offset[:, 4::6] = x + w / 2 - 1
+
+                    # 第一行:y- h/2 第三行:y+ h/2
+                    star_offset[:, 1:6:2] = y - h / 2 + 1
+                    star_offset[:, 13:18:2] = y + h / 2 - 1  # 也可写作 offset[:, 13::2] = y+h/2-1
+
+                    ''' 8points Dconv style
+                    8points_output:
+                        'nose_l','nose_r',  'mouth_l','mouth_r', 'eye_l','eye_r', 'mouth_t', 'mouth_b'
+                    3*3 dconv:
+                        e_l m_t e_r
+                        n_l     n_r
+                        m_l m_b m_r
+                    3*3 dconv 8points_output index
+                        7,8  12,13  10,11
+                        0,1         2,3
+                        4,5  14,15  6,7
+                    '''
+                    assert points_output.shape[1] == 8 * 2
+                    xy_points = points_output.clone()
+                    points_offset = torch.zeros([xy_points.shape[0], 3 * 3 * 2, *xy_points.shape[2:]], device=xy_points.device)
+
+                    points_offset[:, 0:8] = xy_points[:, [8, 9, 12, 13, 10, 11, 0, 1]]  #
+                    points_offset[:, 10:] = xy_points[:, [2, 3, 4, 5, 14, 15, 6, 7]]
+
+                    # 第一列:x- w/2  第三列:x+ w/2
+                    points_offset[:, 0::6] += 1
+                    points_offset[:, 4::6] -= 1
+
+                    # 第一行:y- h/2 第三行:y+ h/2
+                    points_offset[:, 1:6:2] += 1
+                    points_offset[:, 13:18:2] -= 1  # 也可写作 offset[:, 13::2] = y+h/2-1
+                ##############################################################
                 if self.vari_dconv_mask: mask = self.dconv_mask.repeat([cls_x.shape[0], 1, *cls_x.shape[-2:]])
                 else: mask = self.dconv_mask
-                if 'early' in self.var_config:
+                if 'early' == self.var_config[1]:
                     Star_Dconv_out = deform_conv2d(cls_x, offset, cls_conv[0].conv.weight, padding=1, mask=mask)
                     cls_feat = cls_conv[1](cls_conv[0].act(cls_conv[0].bn(Star_Dconv_out)))
                     cls_output = self.cls_preds[k](cls_feat)
-                elif 'late' in self.var_config:
+                elif 'late' == self.var_config[1]:
                     cls_feat_early = cls_conv[0](cls_x)
                     Star_Dconv_out = deform_conv2d(cls_feat_early, offset, cls_conv[1].conv.weight, padding=1, mask=mask)
                     cls_feat = cls_conv[1].act(cls_conv[1].bn(Star_Dconv_out))
                     cls_output = self.cls_preds[k](cls_feat)
-                elif 'last' in self.var_config:
+                elif 'last' == self.var_config[1]:
                     cls_feat = cls_conv(cls_x)
-                    cls_output = deform_conv2d(cls_feat, offset, self.cls_preds[k].weight, padding=1, mask=mask)
+                    if 'star_8points' == self.var_config[0]:
+                        star_cls_output = deform_conv2d(cls_feat, star_offset, self.cls_preds[k].weight, padding=1,
+                                                        mask=None)
+                        points_cls_output = deform_conv2d(cls_feat, points_offset, self.cls_preds1[k].weight, padding=1,
+                                                          mask=None)
+                        cls_output = self.cls_12_6[k](torch.cat((star_cls_output, points_cls_output), 1))
+
+                    else:
+                        cls_output = deform_conv2d(cls_feat, offset, self.cls_preds[k].weight, padding=1, mask=mask)
                     # cls_output = self.cls_preds[k](cls_feat)
+                # elif 'star_8points' in self.var_config:
+                #     '''last'''
+                #     cls_feat = cls_conv(cls_x)
+
+                    # cls_output = self.cls_preds[k](torch.cat((star_cls_output, points_cls_output)))
             if self.training:
                 output = torch.cat([reg_output, obj_output, cls_output], 1)
                 output, grid = self.get_output_and_grid(

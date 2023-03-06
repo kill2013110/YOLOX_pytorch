@@ -25,10 +25,11 @@ class Exp(MyExp):
         self.head_type = 'points_branch_3'
         # self.var_config = 'star_early'
         # self.var_config = '8points_early'
-        self.var_config = 'star_last'
+        # self.var_config = [None, None]
+        self.var_config = ['star_8points', 'last']
         self.vari_dconv_mask = False
-        self.get_face_pionts = 0
-        if self.get_face_pionts == 0 : self.head_type = 'org'
+        self.get_face_pionts = 8
+        if self.get_face_pionts == 0: self.head_type = 'org'
         # assert self.var_config in ['star', 'star_inter', None, '8points']
 
         '''loss'''
@@ -39,14 +40,14 @@ class Exp(MyExp):
         self.points_loss = 'Wing'
 
         '''lr, aug'''
-        self.degrees = 10.
+        self.degrees = 0.
         self.aug_epochs = 100
         self.max_epoch = 120
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
-        self.exp_name = f'dsfaf{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config}'
+        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
         if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'
         if self.vari_dconv_mask: self.exp_name += f'_mask'
@@ -56,7 +57,8 @@ class Exp(MyExp):
             self.exp_name += f'_{self.points_loss_weight}_greater0.9_{self.points_loss}'
 
         if self.degrees != 10.:
-            self.exp_name += f'_{self.degrees}nor0.3deg' \
+            self.exp_name += f'_{self.degrees}deg' \
+            # self.exp_name += f'_{self.degrees}nor0.3deg' \
         # self.arc_config = {'arc': False, 's': 5, 'm': 0.25}
         if self.spp_size != (5, 9, 13):
             self.exp_name += f'_spp{self.spp_size[0]}_{self.spp_size[1]}_{self.spp_size[2]}'
@@ -103,9 +105,9 @@ class Exp(MyExp):
         # self.basic_lr_per_img=0.00015625/10
 
 
-        self.data_num_workers = 4
+        self.data_num_workers = 2
         self.print_interval = 100
-        self.eval_interval = 1
+        self.eval_interval = 5
 
 
 

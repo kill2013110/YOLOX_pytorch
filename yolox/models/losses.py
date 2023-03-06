@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+
 class SmoothL1Loss(nn.Module):
     def __init__(self, w=10, e=2, label_th=0.9, ada_pow=0):
         super(SmoothL1Loss, self).__init__()

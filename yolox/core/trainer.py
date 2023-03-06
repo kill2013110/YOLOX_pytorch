@@ -366,6 +366,8 @@ cv2.waitKey()
             if is_parallel(evalmodel):
                 evalmodel = evalmodel.module
 
+        logger.info('dconv mask init state:')
+        logger.info(self.model.head.dconv_mask)
         with adjust_status(evalmodel, training=False):
             cocoeval_stats, summary, res_50, res_75 = self.exp.eval(
                 evalmodel, self.evaluator, self.is_distributed
