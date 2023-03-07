@@ -119,7 +119,17 @@ class YOLOPAFPN(nn.Module):
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
 if __name__ == "__main__":
-    import torch
+    import torch, copy
+    # from torchinfo import summary
+    from thop import profile
     net = YOLOPAFPN(depth=0.33, width=0.25)
-    a = net(torch.randn([4, 3, 416, 416]))
+    a = net(torch.randn([4, 3, 640, 640]))
+
+    for i in a:
+        print(i.shape)
+
+    img = torch.zeros((4, 3, 512, 640), device=next(net.parameters()).device)
+    flops, params = profile(copy.deepcopy(net), inputs=(img,), verbose=False)
+    print(flops)
+    print(f'{params/1e6} M')
     print('123')
