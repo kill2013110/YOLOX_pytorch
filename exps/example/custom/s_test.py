@@ -21,14 +21,14 @@ class Exp(MyExp):
         # self.Assigner = 'TAL'
         self.Assigner = 'SimOTA'
         # self.head_type = 'var'
-        # self.head_type = 'org'
-        self.head_type = 'points_branch_3'
+        self.head_type = 'org'
+        # self.head_type = 'points_branch_3'
         # self.var_config = 'star_early'
         # self.var_config = '8points_early'
-        # self.var_config = [None, None]
-        self.var_config = ['star_8points', 'last']
+        self.var_config = [None, None]
+        # self.var_config = ['star_8points', 'last']
         self.vari_dconv_mask = False
-        self.get_face_pionts = 8
+        self.get_face_pionts = 0
         if self.get_face_pionts == 0: self.head_type = 'org'
         # assert self.var_config in ['star', 'star_inter', None, '8points']
 

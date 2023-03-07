@@ -122,7 +122,7 @@ if __name__ == "__main__":
     import torch, copy
     # from torchinfo import summary
     from thop import profile
-    net = YOLOPAFPN(depth=0.33, width=0.25)
+    net = YOLOPAFPN(depth=0.33, width=0.5)
     a = net(torch.randn([4, 3, 640, 640]))
 
     for i in a:

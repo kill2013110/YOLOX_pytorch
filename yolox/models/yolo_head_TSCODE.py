@@ -21,8 +21,8 @@ class YOLOXHead_TSCODE(nn.Module):
         self,
         num_classes,
         width=1.0,
-        strides=[4, 8, 16, 32, 64],
-        in_channels=[128, 256, 512, 1024, 2048],
+        strides=[8, 16, 32],
+        in_channels=[256, 512, 1024],
         act="silu",
         depthwise=False,
         get_face_pionts=False,
@@ -70,64 +70,68 @@ class YOLOXHead_TSCODE(nn.Module):
         self.reg_preds = nn.ModuleList()
         if self.reg_iou:
             self.obj_preds = nn.ModuleList()
-        self.stems = nn.ModuleList()
+        # self.stems = nn.ModuleList()
         Conv = DWConv if depthwise else BaseConv
 
-        for i in range(len(in_channels)):
-            self.stems.append(
-                BaseConv(
-                    in_channels=int(in_channels[i] * width),
+        self.cls_downsample = BaseConv(
+                    in_channels=int(256 * width),
                     out_channels=int(256 * width),
-                    ksize=1,
-                    stride=1,
+                    ksize=3,
+                    stride=2,
                     act=act,
                 )
-            )
+        self.box_downsample = BaseConv(
+            in_channels=int(256 * width),
+            out_channels=int(256 * width),
+            ksize=3,
+            stride=2,
+            act=act,
+        )
+        self.box_upsample = nn.Upsample(scale_factor=2, mode="nearest")
+
+        for i in range(len(in_channels)):
+            # self.stems.append(
+            #     BaseConv(
+            #         in_channels=int(in_channels[i] * width),
+            #         out_channels=int(256 * width),
+            #         ksize=1,
+            #         stride=1,
+            #         act=act,
+            #     )
+            # )
             self.cls_convs.append(
                 nn.Sequential(
                     *[
                         Conv(
-                            in_channels=int(256 * width),
-                            out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
-                            out_channels=int(256 * width),
-                            # out_channels=2,
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                            in_channels=int(256 * width * 2),
+                            out_channels=int(256 * width * 2),
+                            ksize=3, stride=1, act=act,),
+                        # Conv(
+                        #     in_channels=int(256 * width * 2),
+                        #     out_channels=int(256 * width * 2),
+                        #     # out_channels=2,
+                        #     ksize=3, stride=1, act=act,),
                     ]
                 )
             )
             self.reg_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width),
-                            out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
-                            out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                        Conv(in_channels=int(256 * width), out_channels=int(256 * width),
+                             ksize=3, stride=1, act=act, ),
+                        Conv(in_channels=int(256 * width), out_channels=int(256 * width),
+                             ksize=3, stride=1, act=act, ),
+                        # Conv(in_channels=int(256 * width), out_channels=int(256 * width),
+                        #      ksize=3, stride=1, act=act, ),
+                        # Conv(in_channels=int(256 * width),out_channels=int(256 * width),
+                        #     ksize=3,stride=1,act=act,),
                     ]
                 )
             )
             self.cls_preds.append(
                 nn.Conv2d(
-                    in_channels=int(256 * width),
-                    out_channels=self.n_anchors * self.num_classes,
+                    in_channels=int(256 * width * 2),
+                    out_channels=self.n_anchors * self.num_classes * 4,
                     kernel_size=3 if 'last' == self.var_config[1] else 1,
                     stride=1,
                     padding=0,
@@ -203,15 +207,18 @@ class YOLOXHead_TSCODE(nn.Module):
         expanded_strides = []
 
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
-            zip(self.cls_convs, self.reg_convs, self.strides[1:-1], xin[1:-1])
+            zip(self.cls_convs, self.reg_convs, self.strides, xin[1:-1])
         ):
             # x = self.stems[k](x)
+            x_s = xin[k+2]
+            x_l = xin[k]
             """ Task-Specific Context Decoupling for Object Detection """
             ''' Semantic context encoding for classification '''
-            cls_x = x
-
+            cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
             ''' Detail-preserving encoding for localization '''
-            reg_x = x
+            H_s = self.box_upsample(x_s)
+            H_l = self.box_downsample(self.box_upsample(x) + x_l)
+            reg_x = H_s + x + H_l
 
             reg_feat = reg_conv(reg_x)
             reg_output = self.reg_preds[k](reg_feat)
@@ -223,7 +230,8 @@ class YOLOXHead_TSCODE(nn.Module):
             if self.var_config[0] == None:
                 ''' YOLOX origin Conv style:  '''
                 cls_feat = cls_conv(cls_x)
-                cls_output = self.cls_preds[k](cls_feat)
+                cls_output_4 = self.cls_preds[k](cls_feat)
+                cls_output = cls_output_4.view([cls_output_4.shape[0], self.num_classes, *x.shape[2:]])
             else:
                 #######################计算偏移量############################
                 if '0offset' in self.var_config:
@@ -1005,3 +1013,4 @@ class YOLOXHead_TSCODE(nn.Module):
             fg_mask_inboxes
         ]
         return num_fg, gt_matched_classes, pred_ious_this_matching, matched_gt_inds
+

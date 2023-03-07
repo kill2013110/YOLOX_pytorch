@@ -268,7 +268,7 @@ class CSPDarknet_4(nn.Module):
 
 if __name__ == "__main__":
     import torch
-    net = CSPDarknet_4(dep_mul=0.33, wid_mul=0.25, depthwise=False, act='silu')
+    net = CSPDarknet_4(dep_mul=0.33, wid_mul=0.5, depthwise=False, act='silu')
     a = net(torch.randn([4,3,416,416]))
     print()
     print('123')
