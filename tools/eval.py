@@ -19,10 +19,10 @@ from yolox.utils import configure_nccl, fuse_model, get_local_rank, get_model_in
 print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
 if socket.gethostname() == 'DESKTOP-OMJJ23Q':
     path_root = r'D:/liwenlong/'
-    data_root = r'D:/liwenlong/Diverse_Masked_Faces_v2_m/'
+    # data_root = r'D:/liwenlong/Diverse_Masked_Faces_v2_m/'
 else:
     path_root = r'E:/ocr/container_ocr/'
-    data_root = r'F:/datasets/Diverse_Masked_Faces_v2_m/'
+    # data_root = r'F:/datasets/Diverse_Masked_Faces_v2_m/'
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Eval")
@@ -52,8 +52,8 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default=path_root + r'YOLOX\exps\example\custom/s_test.py',
-        # default=path_root + r'YOLOX\exps\example\custom/yolox_s_mask.py',
+        # default=path_root + r'YOLOX\exps\example\custom/s_test.py',
+        default=path_root + r'YOLOX\exps\example\custom/s_test_coco.py',
         type=str,
         help="pls input your expriment description file",
     )
@@ -64,13 +64,13 @@ def make_parser():
     temp_dir_name = \
     '3090branch3_None_8points_100_100_0.05greater0.9_wing_IACS'
     parser.add_argument("-c", "--ckpt",
-                        # default=path_root + r'YOLOX\tools\YOLOX_outputs\yolox_s_mask_var_org star\best_ckpt.pth',
+                        default=path_root + r'YOLOX\weight\yolox_s.pth',
                         # default=path_root + r'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_0.1_strongaug_greater0.9\best_ckpt.pth',
-                        default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
+                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
                         type=str, help="ckpt for eval")
     parser.add_argument("--conf", default=0.01, type=float, help="test conf")
     parser.add_argument("--nms", default=0.65, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=416, type=int, help="test img size")
+    parser.add_argument("--tsize", default=640, type=int, help="test img size")
     parser.add_argument("--seed", default=0, type=int, help="eval seed")
     parser.add_argument(
         "--fp16",
@@ -182,7 +182,10 @@ def main(exp, args, num_gpu):
         loc = "cuda:{}".format(rank)
         ckpt = torch.load(ckpt_file, map_location=loc)
         model.load_state_dict(ckpt["model"])
-        logger.info(f" cur_epoch:{ckpt['start_epoch']} best epoch:{ckpt['best_epoch']} best_ap:{ckpt['best_ap']:.4f}  ")
+        try:
+            logger.info(f" cur_epoch:{ckpt['start_epoch']} best epoch:{ckpt['best_epoch']} best_ap:{ckpt['best_ap']:.4f}  ")
+        except:
+            logger.info('some error')
         logger.info("loaded checkpoint done.")
 
     if is_distributed:

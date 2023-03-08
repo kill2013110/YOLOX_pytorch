@@ -277,4 +277,6 @@ class COCODataset(Dataset):
 
         if self.preproc is not None:
             img, target = self.preproc(img, target, self.input_dim)
+
+        # return img, target, img_info, int(img_id) if type(img_id) == str else img_id
         return img, target, img_info, img_id

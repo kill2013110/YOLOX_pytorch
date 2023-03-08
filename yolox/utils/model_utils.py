@@ -22,7 +22,7 @@ __all__ = [
 
 def get_model_info(model: nn.Module, tsize: Sequence[int]) -> str:
     stride = 640
-    img = torch.zeros((1, 3, 416, 640), device=next(model.parameters()).device)
+    img = torch.zeros((1, 3, 512, 640), device=next(model.parameters()).device)
     flops, params = profile(deepcopy(model), inputs=(img,), verbose=False)
     params /= 1e6
     flops /= 1e9

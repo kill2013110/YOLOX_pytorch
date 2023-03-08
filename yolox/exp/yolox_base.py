@@ -127,9 +127,10 @@ class Exp(BaseExp):
         from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, \
             YOLOXHead_points_branch_3_dconv,\
             YOLOXHead_points_branch_1_dconv,\
-            YOLOXHead_points_branch_4_dconv
-            # YOLOXHead_points_branch_2, YOLOXHead_points_branch_3
+            YOLOXHead_points_branch_4_dconv,\
+            YOLO_fpn_TSCODE, YOLOXHead_TSCODE
 
+        # YOLOXHead_points_branch_2, YOLOXHead_points_branch_3
         def init_yolo(M):
             for m in M.modules():
                 if isinstance(m, nn.BatchNorm2d):
@@ -138,17 +139,30 @@ class Exp(BaseExp):
 
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
-            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
-            if self.head_type == 'org':
-                head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
-                                points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
-                                var_config=self.var_config,
-                                reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
-                                cls_loss_weight=self.cls_loss_weight,
-                                vari_dconv_mask=self.vari_dconv_mask,
-                                 Assigner=self.Assigner,
-                                 )
+            if self.backbone == 'yoloxpan':
+                backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
+                if self.head_type == 'org':
+                    head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                     get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
+                                     points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                     var_config=self.var_config,
+                                     reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                     cls_loss_weight=self.cls_loss_weight,
+                                     vari_dconv_mask=self.vari_dconv_mask,
+                                     Assigner=self.Assigner,
+                                     )
+            elif self.backbone == 'TSCODE':
+                backbone = YOLO_fpn_TSCODE(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
+                head = YOLOXHead_TSCODE(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                     get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
+                                     points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                     var_config=self.var_config,
+                                     reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                     cls_loss_weight=self.cls_loss_weight,
+                                     vari_dconv_mask=self.vari_dconv_mask,
+                                     Assigner=self.Assigner,
+                                     )
+
             # elif self.head_type == 'arc':
             #     head = YOLOXHeadArc(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
             #                         arc_config=self.arc_config)
@@ -214,6 +228,8 @@ class Exp(BaseExp):
                 max_size = int(self.input_size[0] / 32) + self.multiscale_range
                 self.random_size = (min_size, max_size)
             size = random.randint(*self.random_size)
+            if self.backbone == 'TSCODE':
+                if size % 2 != 0: size = random.choice([size-1, size+1])
             size = (int(32 * size), 32 * int(size * size_factor))
             tensor[0] = size[0]
             tensor[1] = size[1]
@@ -334,7 +350,7 @@ class Exp(BaseExp):
                     hsv_prob=self.hsv_prob),
                 cache=cache_img,
             )
-
+        assert len(dataset.class_ids) == self.num_classes
         dataset = MosaicDetection(
             dataset,
             mosaic=not no_aug,
@@ -390,6 +406,7 @@ class Exp(BaseExp):
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
         )
+        assert len(valdataset.class_ids) == self.num_classes
 
         if is_distributed:
             batch_size = batch_size // dist.get_world_size()
@@ -415,6 +432,7 @@ class Exp(BaseExp):
         from yolox.evaluators import COCOEvaluator
 
         val_loader = self.get_eval_loader(batch_size, is_distributed, testdev, legacy)
+
         evaluator = COCOEvaluator(
             dataloader=val_loader,
             img_size=self.test_size,
@@ -424,6 +442,7 @@ class Exp(BaseExp):
             testdev=testdev,
             get_face_pionts=self.get_face_pionts
         )
+
         return evaluator
 
     def eval(self, model, evaluator, is_distributed, half=False):

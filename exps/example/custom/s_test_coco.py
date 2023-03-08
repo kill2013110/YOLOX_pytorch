@@ -3,7 +3,7 @@
 # Copyright (c) Megvii, Inc. and its affiliates.
 import os, socket
 from yolox.exp import Exp as MyExp
-
+from yolox.data.datasets.coco_classes import COCO_CLASSES
 
 class Exp(MyExp):
     def __init__(self):
@@ -11,19 +11,19 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.seed = 0
-        self.input_size = (512, 512)
+        self.input_size = (640, 640)
 
         '''backone'''
-        # self.backbone = 'yoloxpan'
-        self.backbone = 'TSCODE'
+        self.backbone = 'yoloxpan'
+        # self.backbone = 'TSCODE'
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
-        self.reg_iou = 0
+        self.reg_iou = True
         # self.Assigner = 'TAL'
         self.Assigner = 'SimOTA'
         # self.head_type = 'var'
-        # self.head_type = 'org'
+        self.head_type = 'org'
         # self.head_type = 'points_branch_3'
         # self.var_config = 'star_early'
         # self.var_config = '8points_early'
@@ -76,31 +76,37 @@ class Exp(MyExp):
 
         # Define yourself dataset path
         self.name = ''
-        print(f'{"-"*10} {socket.gethostname()} {"-"*10}')
-        if socket.gethostname() == 'DESKTOP-OMJJ23Q':
-            path_root = r'D:\liwenlong\Diverse_Masked_Faces_v2_m/'
-        else:
-            path_root = r'F:\datasets\Diverse_Masked_Faces_v2_m/'
-        self.train_img_dir = path_root + 'new_img'
-        self.val_img_dir =path_root + 'new_img'
+        # print(f'{"-"*10} {socket.gethostname()} {"-"*10}')
+        # if socket.gethostname() == 'DESKTOP-OMJJ23Q':
+        #     path_root = r'D:\liwenlong\Diverse_Masked_Faces_v2_m/'
+        # else:
+        #     path_root = r'F:\datasets\Diverse_Masked_Faces_v2_m/'
+        # self.train_img_dir = path_root + 'new_img'
+        # self.val_img_dir =path_root + 'new_img'
 
         # self.train_ann =path_root + 'ann/train_v3.json'
         # self.val_ann =path_root + 'ann/val_v3.json'
 
         # self.train_ann = path_root + 'ann/val_v4_11points.json'
-        self.train_ann =path_root + 'ann/train_v3_11points.json'
-        self.val_ann = path_root + 'ann/val_v4_11points.json'
+        # self.train_ann =path_root + 'ann/train_v3_11points.json'
+        # self.val_ann = path_root + 'ann/val_v4_11points.json'
         # self.val_ann =path_root + 'ann/val_v3_11points.json'
 
         # self.train_ann = path_root + "ann/train_v3_small.json"
         # self.val_ann = path_root + "ann/val_v3_small.json"
+
+        # self.train_img_dir = path_root + 'new_img'
+        self.val_img_dir = r'F:\datasets\coco2017\images\val2017'
+        # self.val_img_dir = r'F:\datasets\coco2017\images\val2017_500'
+        # self.train_ann = path_root + "ann/train_v3_small.json"
+        self.val_ann = r"F:\datasets\coco2017\annotations\instances_val2017.json"
 
         if self.input_size[0] != 416:
             self.multiscale_range = 5
         else:
             self.random_size = (10, 20)
         self.test_size = self.input_size
-        self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others', 'spoof')
+        self.cls_names = COCO_CLASSES
         self.num_classes = len(self.cls_names)
 
 
@@ -109,7 +115,7 @@ class Exp(MyExp):
         # self.basic_lr_per_img=0.00015625/10
 
 
-        self.data_num_workers = 2
+        self.data_num_workers = 1
         self.print_interval = 100
         self.eval_interval = 5
 

@@ -62,16 +62,16 @@ def make_parser():
     # 0.1987ashdlihasldh
     parser.add_argument(
         "--resume",
-        default=True,
-        # default=False,
+        # default=True,
+        default=False,
         action="store_true", help="resume training"
     )
     temp_dir_name = \
         's_test_org_None_None_0points_100straug_100coslr_0.0deg_IACS'
     parser.add_argument("-c", "--ckpt",
-                        # default= None,
+                        default= None,
                         # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
-                        default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
+                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
                         # default=path_root + 'YOLOX\weight\yolox_s.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9\best_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9\epoch_99_ckpt.pth',
@@ -79,7 +79,7 @@ def make_parser():
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=71,
+        default=113,
         type=int,
         help="resume training start epoch",
     )

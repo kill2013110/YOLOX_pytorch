@@ -125,6 +125,7 @@ class YOLO_fpn_TSCODE(nn.Module):
         fpn_out0 = self.lateral_conv0(x0)  # 1024->512/32
         # 通道数256
         fpn_out0_slim = self.down_c(fpn_out0)
+        # 通道数整合
         x00 = self.smallest_outconv(fpn_out0_slim)
 
         f_out0 = self.upsample(fpn_out0)  # 512/16
