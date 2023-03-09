@@ -15,8 +15,8 @@ class Exp(MyExp):
         
         self.output_dir = '/model'
         '''backone'''
-        self.backbone = 'yoloxpan'
-        # self.backbone = 'TSCODE'
+#         self.backbone = 'yoloxpan'
+        self.backbone = 'TSCODE'
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
@@ -102,8 +102,8 @@ class Exp(MyExp):
         self.val_img_dir = r'/dataset/val2017/val2017'
         self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_val2017.json"
         if 'T4' in torch.cuda.get_device_name(0):
-            self.train_img_dir = r'/dataset/train2017/train2017'
-            self.train_ann = '/dataset/annotations_trainval2017/annotations/instances_train2017.json'
+            self.train_img_dir = r'/dataset/val2017/val2017'
+            self.train_ann = '/dataset/annotations_trainval2017/annotations/instances_val2017.json'
             
         if self.input_size[0] != 416:
             self.multiscale_range = 5
