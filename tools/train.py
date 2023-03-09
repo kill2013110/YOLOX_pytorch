@@ -6,17 +6,18 @@ import argparse
 import random,sys
 import warnings
 from loguru import logger
-
 import torch
 import torch.backends.cudnn as cudnn
-
-from yolox.core import Trainer, launch
-from yolox.exp import get_exp
-from yolox.utils import configure_nccl, configure_omp, get_num_devices
 import os, socket
 os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 sys.path.append('/code/yolox/')
 print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
+
+
+from yolox.core import Trainer, launch
+from yolox.exp import get_exp
+from yolox.utils import configure_nccl, configure_omp, get_num_devices
+
 if socket.gethostname() == 'DESKTOP-OMJJ23Q':
     path_root = r'D:/liwenlong/'
 else:
