@@ -10,7 +10,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import os, socket
 os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
-sys.path.append('/code/yolox/')
+sys.path.append('/code/')
 print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
 
 
