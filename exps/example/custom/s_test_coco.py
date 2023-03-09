@@ -45,7 +45,7 @@ class Exp(MyExp):
 
         '''lr, aug'''
         self.degrees = 10.
-        self.aug_epochs = 0
+        self.aug_epochs = 285
         self.max_epoch = 300
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
@@ -97,13 +97,14 @@ class Exp(MyExp):
         # self.val_ann = path_root + "ann/val_v3_small.json"
 
         self.train_img_dir = r'/dataset/train2017/train2017'
-        self.val_img_dir = r'/dataset/train2017/train2017'
         self.train_ann = '/dataset/annotations_trainval2017/annotations/instances_train2017.json'
-        self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_train2017.json"
-        if 'T4' in torch.cuda.get_device_name(0):
-            self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_val2017.json"
-            self.val_img_dir = r'/dataset/val2017/val2017'
 
+        self.val_img_dir = r'/dataset/val2017/val2017'
+        self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_val2017.json"
+        if 'T4' in torch.cuda.get_device_name(0):
+            self.train_img_dir = r'/dataset/train2017/train2017'
+            self.train_ann = '/dataset/annotations_trainval2017/annotations/instances_train2017.json'
+            
         if self.input_size[0] != 416:
             self.multiscale_range = 5
         else:
