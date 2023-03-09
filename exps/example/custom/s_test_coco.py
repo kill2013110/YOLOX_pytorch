@@ -101,6 +101,8 @@ class Exp(MyExp):
         # self.train_ann = path_root + "ann/train_v3_small.json"
         self.val_ann = r"F:\datasets\coco2017\annotations\instances_val2017.json"
 
+
+
         if self.input_size[0] != 416:
             self.multiscale_range = 5
         else:

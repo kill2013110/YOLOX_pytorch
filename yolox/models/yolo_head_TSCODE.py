@@ -102,15 +102,15 @@ class YOLOXHead_TSCODE(nn.Module):
             self.cls_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width * 2),
-                            out_channels=int(256 * width * 2),
-                            ksize=3, stride=1, act=act,),
                         # Conv(
                         #     in_channels=int(256 * width * 2),
                         #     out_channels=int(256 * width * 2),
-                        #     # out_channels=2,
                         #     ksize=3, stride=1, act=act,),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            # out_channels=2,
+                            ksize=3, stride=1, act=act,),
                     ]
                 )
             )
@@ -130,8 +130,10 @@ class YOLOXHead_TSCODE(nn.Module):
             )
             self.cls_preds.append(
                 nn.Conv2d(
-                    in_channels=int(256 * width * 2),
-                    out_channels=self.n_anchors * self.num_classes * 4,
+                    # in_channels=int(256 * width * 2),
+                    in_channels=int(256 * width),
+                    out_channels=self.n_anchors * self.num_classes,
+                    # out_channels=self.n_anchors * self.num_classes * 4,
                     kernel_size=3 if 'last' == self.var_config[1] else 1,
                     stride=1,
                     padding=0,
@@ -214,7 +216,8 @@ class YOLOXHead_TSCODE(nn.Module):
             x_l = xin[k]
             """ Task-Specific Context Decoupling for Object Detection """
             ''' Semantic context encoding for classification '''
-            cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
+            # cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
+            cls_x = x
             ''' Detail-preserving encoding for localization '''
             H_s = self.box_upsample(x_s)
             H_l = self.box_downsample(self.box_upsample(x) + x_l)
@@ -230,8 +233,19 @@ class YOLOXHead_TSCODE(nn.Module):
             if self.var_config[0] == None:
                 ''' YOLOX origin Conv style:  '''
                 cls_feat = cls_conv(cls_x)
-                cls_output_4 = self.cls_preds[k](cls_feat)
-                cls_output = cls_output_4.view([cls_output_4.shape[0], self.num_classes, *x.shape[2:]])
+                cls_output = self.cls_preds[k](cls_feat)
+                # cls_output = self.box_upsample(cls_output)
+                # cls_output_4 = self.cls_preds[k](cls_feat)
+                # cls_output = cls_output_4.view([cls_output_4.shape[0], self.num_classes, *x.shape[2:]])  # 简单的reshape是不行的
+                # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
+                # row1 = torch.cat((cls_output_4part[:2]), dim=2)
+                # row2 = torch.cat((cls_output_4part[2:]), dim=2)
+                # cls_output = torch.cat((row1, row2), dim=3)
+                #
+                # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
+                # col1 = torch.cat((cls_output_4part[:2]), dim=3)
+                # col2 = torch.cat((cls_output_4part[2:]), dim=3)
+                # cls_output = torch.cat((col1, col2), dim=2)
             else:
                 #######################计算偏移量############################
                 if '0offset' in self.var_config:

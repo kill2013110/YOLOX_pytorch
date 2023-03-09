@@ -50,7 +50,7 @@ class Exp(MyExp):
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
-        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
+        self.exp_name = f'2{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
         # if self.backbone!='yoloxpan':self.exp_name = self.backbone+'_'+self.exp_name
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
         if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'
