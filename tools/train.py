@@ -3,7 +3,7 @@
 # Copyright (c) Megvii, Inc. and its affiliates.
 
 import argparse
-import random
+import random,sys
 import warnings
 from loguru import logger
 
@@ -15,7 +15,7 @@ from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
 import os, socket
 os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
-
+sys.path.append('/code/yolox/')
 # print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
 if socket.gethostname() == 'DESKTOP-OMJJ23Q':
     path_root = r'D:/liwenlong/'
