@@ -72,7 +72,7 @@ def postprocess(prediction_all, num_classes, conf_thre=0.7, nms_thre=0.45,
                 nms_thre,
             )
         '''Keep up to the first 300'''
-        nms_out_index = nms_out_index[:300]
+        nms_out_index = nms_out_index[:1000]
         detections = detections[nms_out_index]
         points = points_i[nms_out_index]
         if output[i] is None:

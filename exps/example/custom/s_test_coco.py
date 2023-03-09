@@ -4,7 +4,7 @@
 import os, socket
 from yolox.exp import Exp as MyExp
 from yolox.data.datasets.coco_classes import COCO_CLASSES
-
+import torch
 class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
@@ -12,7 +12,8 @@ class Exp(MyExp):
         self.width = 0.50
         self.seed = 0
         self.input_size = (640, 640)
-
+        
+        self.output_dir = '/model'
         '''backone'''
         self.backbone = 'yoloxpan'
         # self.backbone = 'TSCODE'
@@ -43,9 +44,9 @@ class Exp(MyExp):
         self.points_loss = 'Wing'
 
         '''lr, aug'''
-        self.degrees = 0.
-        self.aug_epochs = 100
-        self.max_epoch = 120
+        self.degrees = 10.
+        self.aug_epochs = 0
+        self.max_epoch = 300
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
@@ -62,7 +63,7 @@ class Exp(MyExp):
 
         if self.degrees != 10.:
             self.exp_name += f'_{self.degrees}deg' \
-            # self.exp_name += f'_{self.degrees}nor0.3deg' \
+            # self.exp_name += f'_{self.degrees}nor0.3deg' /
         # self.arc_config = {'arc': False, 's': 5, 'm': 0.25}
         if self.spp_size != (5, 9, 13):
             self.exp_name += f'_spp{self.spp_size[0]}_{self.spp_size[1]}_{self.spp_size[2]}'
@@ -78,9 +79,9 @@ class Exp(MyExp):
         self.name = ''
         # print(f'{"-"*10} {socket.gethostname()} {"-"*10}')
         # if socket.gethostname() == 'DESKTOP-OMJJ23Q':
-        #     path_root = r'D:\liwenlong\Diverse_Masked_Faces_v2_m/'
+        #     path_root = r'D:/liwenlong/Diverse_Masked_Faces_v2_m/'
         # else:
-        #     path_root = r'F:\datasets\Diverse_Masked_Faces_v2_m/'
+        #     path_root = r'F:/datasets/Diverse_Masked_Faces_v2_m/'
         # self.train_img_dir = path_root + 'new_img'
         # self.val_img_dir =path_root + 'new_img'
 
@@ -95,11 +96,13 @@ class Exp(MyExp):
         # self.train_ann = path_root + "ann/train_v3_small.json"
         # self.val_ann = path_root + "ann/val_v3_small.json"
 
-        # self.train_img_dir = path_root + 'new_img'
-        self.val_img_dir = r'F:\datasets\coco2017\images\val2017'
-        # self.val_img_dir = r'F:\datasets\coco2017\images\val2017_500'
-        # self.train_ann = path_root + "ann/train_v3_small.json"
-        self.val_ann = r"F:\datasets\coco2017\annotations\instances_val2017.json"
+        self.train_img_dir = r'/dataset/train2017/train2017'
+        self.val_img_dir = r'/dataset/train2017/train2017'
+        self.train_ann = '/dataset/annotations_trainval2017/annotations/instances_train2017.json'
+        self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_train2017.json"
+        if 'T4' in torch.cuda.get_device_name(0):
+            self.val_ann = r"/dataset/annotations_trainval2017/annotations/instances_val2017.json"
+            self.val_img_dir = r'/dataset/val2017/val2017'
 
         if self.input_size[0] != 416:
             self.multiscale_range = 5
@@ -113,11 +116,11 @@ class Exp(MyExp):
         # self.l
         self.basic_lr_per_img = 0.00015625
         # self.basic_lr_per_img=0.00015625/10
+        
 
-
-        self.data_num_workers = 1
+        self.data_num_workers = 4
         self.print_interval = 100
-        self.eval_interval = 5
+        self.eval_interval = 10
 
 
 

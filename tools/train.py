@@ -18,9 +18,9 @@ os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 
 # print(f'{"*" * 10} {socket.gethostname()} {"*" * 10}')
 if socket.gethostname() == 'DESKTOP-OMJJ23Q':
-    path_root = r'D:\liwenlong/'
+    path_root = r'D:/liwenlong/'
 else:
-    path_root = 'E:\ocr\container_ocr/'
+    path_root = 'E:/ocr/container_ocr/'
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
@@ -54,8 +54,8 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        # default=path_root + 'YOLOX\exps\example\custom/yolox_s_mask.py',
-        default=path_root + 'YOLOX\exps\example\custom/s_test.py',
+        # default=path_root + 'YOLOX/exps/example/custom/yolox_s_mask.py',
+        default='/code/exps/example/custom/s_test_coco.py',
         type=str,
         help="plz input your experiment description file",
     )
@@ -70,11 +70,11 @@ def make_parser():
         's_test_org_None_None_0points_100straug_100coslr_0.0deg_IACS'
     parser.add_argument("-c", "--ckpt",
                         default= None,
-                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
-                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
-                        # default=path_root + 'YOLOX\weight\yolox_s.pth',
-                        # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9\best_ckpt.pth',
-                        # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9\epoch_99_ckpt.pth',
+                        # default=path_root + fr'YOLOX/tools/YOLOX_outputs/{temp_dir_name}/best_ckpt.pth',
+                        # default=path_root + fr'YOLOX/tools/YOLOX_outputs/{temp_dir_name}/last_epoch_ckpt.pth',
+                        # default=path_root + 'YOLOX/weight/yolox_s.pth',
+                        # default=path_root + 'YOLOX/tools/YOLOX_outputs/s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9/best_ckpt.pth',
+                        # default=path_root + 'YOLOX/tools/YOLOX_outputs/s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9/epoch_99_ckpt.pth',
                         type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
