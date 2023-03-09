@@ -119,7 +119,7 @@ class Exp(MyExp):
         # self.basic_lr_per_img=0.00015625/10
         
 
-        self.data_num_workers = 4
+        self.data_num_workers = 8
         self.print_interval = 100
         self.eval_interval = 10
 
