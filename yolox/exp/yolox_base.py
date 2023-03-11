@@ -79,7 +79,7 @@ class Exp(BaseExp):
         self.scheduler = "yoloxwarmcos"
         # last #epoch to close augmention like mosaic
         self.no_aug_epochs = 15
-        self.min_lr_epochs = self.no_aug_epochs  # 默认情况下两者应该相等，但在加入关键点数据训练时不是这样
+        self.min_lr_epochs = self.no_aug_epochs
         # apply EMA during training
         self.ema = True
 

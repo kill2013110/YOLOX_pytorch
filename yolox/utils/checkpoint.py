@@ -10,26 +10,24 @@ import torch
 
 def load_ckpt(model, ckpt):
     model_state_dict = model.state_dict()
-    load_dict = {}
+    matched_w = {}
+    unmatched_w = {}
     for key_model, v in model_state_dict.items():
         if key_model not in ckpt:
-            logger.warning(
-                "{} is not in the ckpt. Please double check and see if this is desired.".format(
-                    key_model
-                )
-            )
+            unmatched_w[key_model] = v
             continue
         v_ckpt = ckpt[key_model]
         if v.shape != v_ckpt.shape:
-            logger.warning(
-                "Shape of {} in checkpoint is {}, while shape of {} in model is {}.".format(
-                    key_model, v_ckpt.shape, key_model, v.shape
-                )
-            )
+            unmatched_w[key_model] = v
             continue
-        load_dict[key_model] = v_ckpt
+        matched_w[key_model] = v_ckpt
+    logger.warning("These weight keys in the model, but not match with the ckpt:")
+    logger.warning(unmatched_w.keys())
 
-    model.load_state_dict(load_dict, strict=False)
+    logger.warning("These weight keys in the model, and matched with the ckpt:")
+    logger.warning(matched_w.keys())
+
+    model.load_state_dict(matched_w, strict=False)
     return model
 
 

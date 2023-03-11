@@ -14,6 +14,7 @@ class Exp(MyExp):
         self.input_size = (512, 512)
 
         '''backone'''
+        self.only_backbone_pretrain = False
         # self.backbone = 'yoloxpan'
         self.backbone = 'TSCODE'
         # self.spp_size = (3, 5, 7)
@@ -43,14 +44,14 @@ class Exp(MyExp):
         self.points_loss = 'Wing'
 
         '''lr, aug'''
-        self.degrees = 0.
-        self.aug_epochs = 100
+        self.degrees = 10.
+        self.aug_epochs = 0
         self.max_epoch = 120
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
-        self.exp_name = f'2{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
+        self.exp_name = f'mend2{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
         # if self.backbone!='yoloxpan':self.exp_name = self.backbone+'_'+self.exp_name
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
         if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'
@@ -70,7 +71,8 @@ class Exp(MyExp):
             self.exp_name += f'_IACS'
         if self.cls_loss_weight != 1:
             self.exp_name += f'_cls_loss{self.cls_loss_weight}'
-
+        if self.only_backbone_pretrain == True:
+            self.exp_name += f'_darkckpt'
         self.val_batch_size = 1
 
 

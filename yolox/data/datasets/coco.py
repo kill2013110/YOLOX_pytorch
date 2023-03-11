@@ -4,6 +4,7 @@
 
 import os
 from loguru import logger
+import json
 
 import cv2
 import numpy as np
@@ -68,7 +69,12 @@ class COCODataset(Dataset):
         self.json_file = json_file
 
         # self.coco = COCO(os.path.join(self.data_dir, self.json_file))
-        self.coco = COCO(self.json_file)
+        self.coco = COCO()
+        with open(self.json_file, 'r') as f:
+            dataset = json.load(f)
+        assert type(dataset) == dict, 'annotation file format {} not supported'.format(type(dataset))
+        self.coco.dataset = dataset
+        self.coco.createIndex()
 
         remove_useless_info(self.coco)
         self.ids = self.coco.getImgIds()

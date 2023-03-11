@@ -86,41 +86,24 @@ class YOLOXHead(nn.Module):
             self.cls_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
+                            ksize=3, stride=1, act=act,),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            # out_channels=2,
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                            ksize=3, stride=1, act=act,),
                     ]
                 )
             )
             self.reg_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
+                            ksize=3, stride=1, act=act,),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                            ksize=3, stride=1, act=act,),
                     ]
                 )
             )
@@ -237,7 +220,7 @@ class YOLOXHead(nn.Module):
                     offset[:, 1:6:2] = 0-1
                     offset[:, 13:18:2] = 0+1  # 也可写作 offset[:, 13::2] = y+h/2
 
-                if '8points' in self.var_config:  # 8个关键点 + 特征点
+                elif '8points' in self.var_config:  # 8个关键点 + 特征点
                     assert points_output.shape[1] == 8 * 2
                     ''' 8points Dconv style
                     8points_output:
@@ -508,6 +491,7 @@ class YOLOXHead(nn.Module):
                 l1_target = outputs.new_zeros((0, 4))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
+                fg_iou_metric = outputs.new_zeros((0))
             else:
                 gt_bboxes_per_image = labels[batch_idx, :num_gt, 1:5]
                 gt_classes = labels[batch_idx, :num_gt, 0]
@@ -601,7 +585,10 @@ class YOLOXHead(nn.Module):
             reg_targets.append(reg_target)
             obj_targets.append(obj_target.to(dtype))
             fg_masks.append(fg_mask)
-            fg_iou_metrics.append(fg_iou_metric)
+            try:
+                fg_iou_metrics.append(fg_iou_metric)
+            except:
+                print('error')
             if self.use_l1:
                 l1_targets.append(l1_target)
             if self.get_face_pionts:

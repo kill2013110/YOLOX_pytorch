@@ -14,8 +14,9 @@ class Exp(MyExp):
         self.input_size = (640, 640)
 
         '''backone'''
-        self.backbone = 'yoloxpan'
-        # self.backbone = 'TSCODE'
+
+        # self.backbone = 'yoloxpan'
+        self.backbone = 'TSCODE'
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
@@ -44,8 +45,8 @@ class Exp(MyExp):
 
         '''lr, aug'''
         self.degrees = 0.
-        self.aug_epochs = 100
-        self.max_epoch = 120
+        self.aug_epochs = 0
+        self.max_epoch = 300
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
@@ -95,10 +96,11 @@ class Exp(MyExp):
         # self.train_ann = path_root + "ann/train_v3_small.json"
         # self.val_ann = path_root + "ann/val_v3_small.json"
 
-        # self.train_img_dir = path_root + 'new_img'
+        # self.train_img_dir = r'F:\datasets\coco2017\images\train2017'
+        # self.train_ann = r"F:\datasets\coco2017\annotations\instances_train2017.json"
+        self.train_img_dir = r'F:\datasets\coco2017\images\val2017'
+        self.train_ann = r"F:\datasets\coco2017\annotations\instances_val2017.json"
         self.val_img_dir = r'F:\datasets\coco2017\images\val2017'
-        # self.val_img_dir = r'F:\datasets\coco2017\images\val2017_500'
-        # self.train_ann = path_root + "ann/train_v3_small.json"
         self.val_ann = r"F:\datasets\coco2017\annotations\instances_val2017.json"
 
 
@@ -117,9 +119,9 @@ class Exp(MyExp):
         # self.basic_lr_per_img=0.00015625/10
 
 
-        self.data_num_workers = 1
-        self.print_interval = 100
-        self.eval_interval = 5
+        self.data_num_workers = 4
+        self.print_interval = 50
+        self.eval_interval = 1
 
 
 

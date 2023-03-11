@@ -370,7 +370,7 @@ class COCOEvaluator:
             stats_50_95 = cocoEval.summarize_50_95(vis=False)
             info += f"coco summary: {cocoEval.stats} \n"
             info += f"stats_50_95: {stats_50_95} \n"
-            '''所有iou阈值下'''
+            # '''所有iou阈值下'''
             # AP_iou_th = []
             # iou_th = np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8,0.85,0.9,0.95])
             # # iou_th = cocoEval.params.iouThrs.copy()

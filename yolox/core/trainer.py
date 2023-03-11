@@ -9,7 +9,7 @@ from loguru import logger
 import numpy as np
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=4)
-import torch
+import torch, copy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
@@ -349,10 +349,22 @@ cv2.waitKey()
             )  # noqa
         else:
             if self.args.ckpt is not None:
-                logger.info("loading checkpoint for fine tuning")
-                ckpt_file = self.args.ckpt
-                ckpt = torch.load(ckpt_file, map_location=self.device)["model"]
-                model = load_ckpt(model, ckpt)
+                if self.exp.only_backbone_pretrain:
+                    logger.info("only loading backbone pretrain checkpoint for fine tuning")
+                    ckpt_file = self.args.ckpt
+                    ckpt = torch.load(ckpt_file, map_location=self.device)["model"]
+                    temp = copy.deepcopy(model)
+                    model.backbone.backbone = load_ckpt(temp, ckpt).backbone.backbone
+                    '''
+                    temp.backbone.state_dict()['C3_p3.m.0.conv2.bn.bias']==model.backbone.state_dict()['C3_p3.m.0.conv2.bn.bias']
+                    model.backbone.backbone.state_dict()['dark5.2.m.0.conv1.bn.bias']==temp.backbone.backbone.state_dict()['dark5.2.m.0.conv1.bn.bias']
+                    '''
+                    del temp
+                else:
+                    logger.info("loading checkpoint for fine tuning")
+                    ckpt_file = self.args.ckpt
+                    ckpt = torch.load(ckpt_file, map_location=self.device)["model"]
+                    model = load_ckpt(model, ckpt)
             self.start_epoch = 0
 
         return model
