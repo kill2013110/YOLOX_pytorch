@@ -68,6 +68,7 @@ def make_parser():
         action="store_true", help="resume training"
     )
     parser.add_argument('--ckpt_url', default="", help='pretrain model path')
+    print(parser.ckpt_url)
     temp_dir_name = \
         's_test_org_None_None_0points_100straug_100coslr_0.0deg_IACS'
     parser.add_argument("-c", "--ckpt",
