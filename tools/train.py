@@ -68,7 +68,7 @@ def make_parser():
         action="store_true", help="resume training"
     )
     parser.add_argument('--ckpt_url', default="", help='pretrain model path')
-    print(parser.ckpt_url)
+
     temp_dir_name = \
         's_test_org_None_None_0points_100straug_100coslr_0.0deg_IACS'
     parser.add_argument("-c", "--ckpt",
@@ -154,6 +154,7 @@ def main(exp, args):
 
 if __name__ == "__main__":
     args = make_parser().parse_args()
+    args.ckpt= args.ckpt_url
     exp = get_exp(args.exp_file, args.name)
     exp.merge(args.opts)
 
