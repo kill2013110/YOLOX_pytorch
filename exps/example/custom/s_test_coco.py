@@ -20,7 +20,7 @@ class Exp(MyExp):
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
-        self.reg_iou = True
+        self.reg_iou = False
         # self.Assigner = 'TAL'
         self.Assigner = 'SimOTA'
         # self.head_type = 'var'
