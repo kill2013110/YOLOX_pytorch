@@ -66,21 +66,24 @@ def make_parser():
         default=False,
         action="store_true", help="resume training"
     )
+    parser.add_argument('--ckpt_url', default="", help='pretrain model path')
+    # print(parser.ckpt_url)
     temp_dir_name = \
-        's_test_org_None_None_0points_100straug_100coslr_0.0deg_IACS'
+        's_test_org_None_None_512_0points_100straug_100coslr'
     parser.add_argument("-c", "--ckpt",
                         # default= None,
-                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\best_ckpt.pth',
+                        # default= parser.ckpt_url,
+                        # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\epoch_80_ckpt.pth',
                         # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
-                        default=path_root + 'YOLOX\weight\yolox_s.pth',
-                        # default=path_root + 'YOLOX\weight\TSCODE_SCE_s_matched.pth',
+                        # default=path_root + 'YOLOX\weight\yolox_s.pth',
+                        default=path_root + 'YOLOX/tools/s_test_coco_TSCODE_None_None_640_0points_40straug_40coslr_0.0deg_IACS\epoch_253_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9\best_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9\epoch_99_ckpt.pth',
                         type=str, help="checkpoint file")
     parser.add_argument(
         "-e",
         "--start_epoch",
-        default=113,
+        default=81,
         type=int,
         help="resume training start epoch",
     )

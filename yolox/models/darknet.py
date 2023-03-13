@@ -268,7 +268,17 @@ class CSPDarknet_4(nn.Module):
 
 if __name__ == "__main__":
     import torch
+    import torch, copy
+    # from torchinfo import summary
+    from thop import profile
+
     net = CSPDarknet_4(dep_mul=0.33, wid_mul=0.5, depthwise=False, act='silu')
-    a = net(torch.randn([4,3,416,416]))
-    print()
-    print('123')
+    net.training = False
+    a = net(torch.randn([4, 3, 640, 640]))
+    for k, v in a.items():
+        print(v.shape)
+
+    img = torch.zeros((2, 3, 512, 512), device=next(net.parameters()).device)
+    flops, params = profile(copy.deepcopy(net), inputs=(img,), verbose=False)
+    print(f'backbone flops:{flops / 1e9} f')
+    print(f'backbone params: {params / 1e6} M')

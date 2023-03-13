@@ -102,30 +102,30 @@ class YOLOXHead_TSCODE(nn.Module):
             self.cls_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width * 2),
-                            out_channels=int(256 * width * 2),
-                            ksize=3, stride=1, act=act,),
                         # Conv(
-                        #     in_channels=int(256 * width),
-                        #     out_channels=int(256 * width),
-                        #     # out_channels=2,
+                        #     in_channels=int(256 * width * 2),
+                        #     out_channels=int(256 * width * 2),
                         #     ksize=3, stride=1, act=act,),
-                        # Conv(
-                        #     in_channels=int(256 * width),
-                        #     out_channels=int(256 * width),
-                        #     # out_channels=2,
-                        #     ksize=3, stride=1, act=act, ),
-                        # Conv(
-                        #     in_channels=int(256 * width),
-                        #     out_channels=int(256 * width),
-                        #     # out_channels=2,
-                        #     ksize=3, stride=1, act=act, ),
-                        # Conv(
-                        #     in_channels=int(256 * width),
-                        #     out_channels=int(256 * width),
-                        #     # out_channels=2,
-                        #     ksize=3, stride=1, act=act, ),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            # out_channels=2,
+                            ksize=3, stride=1, act=act,),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            # out_channels=2,
+                            ksize=3, stride=1, act=act, ),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            # out_channels=2,
+                            ksize=3, stride=1, act=act, ),
+                        Conv(
+                            in_channels=int(256 * width),
+                            out_channels=int(256 * width),
+                            # out_channels=2,
+                            ksize=3, stride=1, act=act, ),
                     ]
                 )
             )
@@ -136,20 +136,20 @@ class YOLOXHead_TSCODE(nn.Module):
                              ksize=3, stride=1, act=act, ),
                         Conv(in_channels=int(256 * width), out_channels=int(256 * width),
                              ksize=3, stride=1, act=act, ),
-                        # Conv(in_channels=int(256 * width), out_channels=int(256 * width),
-                        #      ksize=3, stride=1, act=act, ),
-                        # Conv(in_channels=int(256 * width),out_channels=int(256 * width),
-                        #     ksize=3,stride=1,act=act,),
+                        Conv(in_channels=int(256 * width), out_channels=int(256 * width),
+                             ksize=3, stride=1, act=act, ),
+                        Conv(in_channels=int(256 * width),out_channels=int(256 * width),
+                            ksize=3,stride=1,act=act,),
                     ]
                 )
             )
             self.cls_preds.append(
                 nn.Conv2d(
-                    in_channels=int(256 * width * 2),
-                    out_channels=self.n_anchors * self.num_classes * 4,
+                    # in_channels=int(256 * width * 2),
+                    # out_channels=self.n_anchors * self.num_classes * 4,
 
-                    # in_channels=int(256 * width),
-                    # out_channels=self.n_anchors * self.num_classes,
+                    in_channels=int(256 * width),
+                    out_channels=self.n_anchors * self.num_classes,
                     kernel_size=3 if 'last' == self.var_config[1] else 1,
                     stride=1,
                     padding=0,
@@ -232,8 +232,8 @@ class YOLOXHead_TSCODE(nn.Module):
             x_l = xin[k]
             """ Task-Specific Context Decoupling for Object Detection """
             ''' Semantic context encoding for classification '''
-            cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
-            # cls_x = x
+            # cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
+            cls_x = x
             ''' Detail-preserving encoding for localization '''
             H_s = self.upsample(x_s)
             H_l = self.box_downsample(self.upsample(x) + x_l)
@@ -249,14 +249,14 @@ class YOLOXHead_TSCODE(nn.Module):
             if self.var_config[0] == None:
                 ''' YOLOX TSCODE Conv style:  '''
                 cls_feat = cls_conv(cls_x)
-                # cls_output = self.cls_preds[k](cls_feat)
+                cls_output = self.cls_preds[k](cls_feat)
 
                 # cls_output = self.upsample(cls_output)
-                cls_output_4 = self.cls_preds[k](cls_feat)
-                cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
-                row1 = torch.cat((cls_output_4part[0].clone(), cls_output_4part[1].clone()), dim=2)
-                row2 = torch.cat((cls_output_4part[2].clone(), cls_output_4part[3].clone()), dim=2)
-                cls_output = torch.cat((row1, row2), dim=3)
+                # cls_output_4 = self.cls_preds[k](cls_feat)
+                # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
+                # row1 = torch.cat((cls_output_4part[0].clone(), cls_output_4part[1].clone()), dim=2)
+                # row2 = torch.cat((cls_output_4part[2].clone(), cls_output_4part[3].clone()), dim=2)
+                # cls_output = torch.cat((row1, row2), dim=3)
                 #
                 # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
                 # col1 = torch.cat((cls_output_4part[:2]), dim=3)

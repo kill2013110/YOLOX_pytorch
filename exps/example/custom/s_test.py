@@ -16,11 +16,12 @@ class Exp(MyExp):
         '''backone'''
         self.only_backbone_pretrain = False
         # self.backbone = 'yoloxpan'
-        self.backbone = 'TSCODE'
+        # self.backbone = 'TSCODE'
+        self.backbone = 'convnextv2'
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
-        self.reg_iou = 0
+        self.reg_iou = 1
         # self.Assigner = 'TAL'
         self.Assigner = 'SimOTA'
         # self.head_type = 'var'
@@ -45,13 +46,13 @@ class Exp(MyExp):
 
         '''lr, aug'''
         self.degrees = 10.
-        self.aug_epochs = 0
+        self.aug_epochs = 100
         self.max_epoch = 120
         self.no_aug_epochs = self.max_epoch - self.aug_epochs
         self.min_lr_epochs = self.no_aug_epochs
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
-        self.exp_name = f'mend2{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
+        self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
         # if self.backbone!='yoloxpan':self.exp_name = self.backbone+'_'+self.exp_name
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
         if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'

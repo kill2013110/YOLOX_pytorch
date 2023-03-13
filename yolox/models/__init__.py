@@ -21,3 +21,4 @@ from  .yolo_head_points_branch_4_dconv import YOLOXHead_points_branch_4_dconv
 
 from .yolo_fpn_TSCODE import YOLO_fpn_TSCODE
 from .yolo_head_TSCODE import YOLOXHead_TSCODE
+from .convnextv2_pafpn import ConvNextv2_PAFPN
