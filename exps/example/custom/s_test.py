@@ -11,7 +11,7 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.seed = 0
-        self.input_size = (512, 512)
+        self.input_size = (416, 416)
 
         '''backone'''
         self.only_backbone_pretrain = False

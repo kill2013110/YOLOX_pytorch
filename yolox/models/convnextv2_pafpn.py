@@ -5,11 +5,11 @@
 import torch
 import torch.nn as nn
 try:
-    # from .darknet import CSPDarknet
+    from .darknet import CSPDarknet
     from .network_blocks import BaseConv, CSPLayer, DWConv
     from .convnextv2 import convnextv2_atto, convnextv2_femto
 except:
-    # from darknet import CSPDarknet
+    from darknet import CSPDarknet
     from network_blocks import BaseConv, CSPLayer, DWConv
     from convnextv2 import convnextv2_atto, convnextv2_femto
 

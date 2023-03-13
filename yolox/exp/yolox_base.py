@@ -128,7 +128,8 @@ class Exp(BaseExp):
             YOLOXHead_points_branch_3_dconv,\
             YOLOXHead_points_branch_1_dconv,\
             YOLOXHead_points_branch_4_dconv,\
-            YOLO_fpn_TSCODE, YOLOXHead_TSCODE
+            YOLO_fpn_TSCODE, YOLOXHead_TSCODE,\
+            ConvNextv2_PAFPN
 
         # YOLOXHead_points_branch_2, YOLOXHead_points_branch_3
         def init_yolo(M):
@@ -141,18 +142,15 @@ class Exp(BaseExp):
             in_channels = [256, 512, 1024]
             if self.backbone == 'yoloxpan':
                 backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
-                if self.head_type == 'org':
-                    head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
-                                     get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
-                                     points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
-                                     var_config=self.var_config,
-                                     reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
-                                     cls_loss_weight=self.cls_loss_weight,
-                                     vari_dconv_mask=self.vari_dconv_mask,
-                                     Assigner=self.Assigner,
-                                     )
+
+            elif self.backbone == 'convnextv2':
+                backbone = ConvNextv2_PAFPN(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size,
+                                            backbone_ckpt="F:\pretrain_weight\convnextv2_atto_1k_224_ema.pt")
+
             elif self.backbone == 'TSCODE':
                 backbone = YOLO_fpn_TSCODE(self.depth, self.width, in_channels=in_channels, act=self.act, spp_size=self.spp_size)
+
+            if self.backbone == 'TSCODE':
                 head = YOLOXHead_TSCODE(self.num_classes, self.width, in_channels=in_channels, act=self.act,
                                      get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
                                      points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
@@ -169,6 +167,16 @@ class Exp(BaseExp):
             # elif self.head_type == 'var':
             #     head = YOLOXHeadVar(self.num_classes, self.width, in_channels=in_channels, act=self.act, get_face_pionts=self.get_face_pionts,
             #                         var_config=self.var_config)
+            elif self.head_type == 'org':
+                head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act,
+                                 get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
+                                 points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
+                                 var_config=self.var_config,
+                                 reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                 cls_loss_weight=self.cls_loss_weight,
+                                 vari_dconv_mask=self.vari_dconv_mask,
+                                 Assigner=self.Assigner,
+                                 )
             elif self.head_type == 'points_branch_1':
                 head = YOLOXHead_points_branch_1_dconv(self.num_classes, self.width, in_channels=in_channels, act=self.act,
                         get_face_pionts=self.get_face_pionts,

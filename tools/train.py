@@ -75,8 +75,8 @@ def make_parser():
                         # default= parser.ckpt_url,
                         # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\epoch_80_ckpt.pth',
                         # default=path_root + fr'YOLOX\tools\YOLOX_outputs\{temp_dir_name}\last_epoch_ckpt.pth',
-                        # default=path_root + 'YOLOX\weight\yolox_s.pth',
-                        default=path_root + 'YOLOX/tools/s_test_coco_TSCODE_None_None_640_0points_40straug_40coslr_0.0deg_IACS\epoch_253_ckpt.pth',
+                        default=path_root + 'YOLOX\weight\yolox_s.pth',
+                        # default=path_root + 'YOLOX/tools/s_test_coco_TSCODE_None_None_640_0points_40straug_40coslr_0.0deg_IACS\epoch_253_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_8points_100straug_100coslr_0.1_greater0.9\best_ckpt.pth',
                         # default=path_root + 'YOLOX\tools\YOLOX_outputs\s_test_points_branch_1_6points_45.0deg_100straug_100coslr_0.1_greater0.9\epoch_99_ckpt.pth',
                         type=str, help="checkpoint file")
