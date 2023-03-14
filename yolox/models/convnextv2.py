@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_, DropPath
-from convnextv2_utils import LayerNorm, GRN
+from .convnextv2_utils import LayerNorm, GRN
 
 
 class Block(nn.Module):
@@ -87,13 +87,14 @@ class ConvNeXtV2(nn.Module):
             )
             self.stages.append(stage)
             cur += depths[i]
-
-        self.norm = nn.LayerNorm(dims[-1], eps=1e-6)  # final norm layer
-        self.head = nn.Linear(dims[-1], num_classes)
-
         self.apply(self._init_weights)
-        self.head.weight.data.mul_(head_init_scale)
-        self.head.bias.data.mul_(head_init_scale)
+
+        if self.classifier:
+            self.norm = nn.LayerNorm(dims[-1], eps=1e-6)  # final norm layer
+            self.head = nn.Linear(dims[-1], num_classes)
+            self.head.weight.data.mul_(head_init_scale)
+            self.head.bias.data.mul_(head_init_scale)
+
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv2d, nn.Linear)):
@@ -107,25 +108,18 @@ class ConvNeXtV2(nn.Module):
         return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
 
     def forward(self, x):
+        feats = []
         # x = self.forward_features(x)
-        x0 = self.downsample_layers[0](x)
-        x0 = self.stages[0](x0)
-
-        x1 = self.downsample_layers[1](x0)
-        x1 = self.stages[1](x1)
-
-        x2 = self.downsample_layers[2](x1)
-        x2 = self.stages[2](x2)
-
-        x3 = self.downsample_layers[3](x2)
-        x3 = self.stages[3](x3)
-
+        for i in range(4):
+            x = self.downsample_layers[i](x)
+            x = self.stages[i](x)
+            feats.append(x)
         if self.classifier:
-            x = self.norm(x3.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
+            x = self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
             x = self.head(x)
             return x
         else:
-            return x1, x2, x3
+            return feats[-3:]
 
 
 def convnextv2_atto(**kwargs):

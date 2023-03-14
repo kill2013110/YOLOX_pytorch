@@ -32,7 +32,9 @@ class YOLOXHead(nn.Module):
         points_loss_weight=0.,
         var_config=[None,None],
         reg_iou=True,
+        box_loss='GIoU',
         box_loss_weight=5.,
+        # cls_loss='BCE',
         cls_loss_weight=1,
         vari_dconv_mask=False,
         Assigner='SimOTA',
@@ -150,8 +152,13 @@ class YOLOXHead(nn.Module):
             self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
         else:
             self.cls_loss_fn = VariFocalLoss()
-        # if box_loss =='CIoU':
-        self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
+        if box_loss =='a_CIoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
+        elif box_loss =='GIoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="giou")
+        elif box_loss =='IoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="iou")
+
         if self.get_face_pionts != 0:
             assert points_loss in ['SmoothL1', 'Wing']
             if points_loss == 'Wing':

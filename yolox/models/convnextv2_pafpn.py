@@ -33,11 +33,11 @@ class ConvNextv2_PAFPN(nn.Module):
         super().__init__()
         if convnextv2=='atto':
             self.backbone = convnextv2_atto(classifier=False)
-            self.backbone_c = [80, 160, 320]
+            self.backbone_channel = [80, 160, 320]
         else:
             pass
         if backbone_ckpt!=None:
-            self.backbone.load_state_dict(torch.load(backbone_ckpt))
+            self.backbone.load_state_dict(torch.load(backbone_ckpt)['model'], False)
             print('convnextv2 atto backbone_ckpt loaded !')
 
         self.in_features = in_features
@@ -46,13 +46,13 @@ class ConvNextv2_PAFPN(nn.Module):
 
         '''convnextv2 backbone channel adjust'''
         self.C_s = CSPLayer(
-            int(self.backbone_c[2]), int(in_channels[2] * width),
+            int(self.backbone_channel[2]), int(in_channels[2] * width),
             round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
         self.C_m = CSPLayer(
-            int(self.backbone_c[1]), int(in_channels[1] * width),
+            int(self.backbone_channel[1]), int(in_channels[1] * width),
             round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
         self.C_l = CSPLayer(
-            int(self.backbone_c[0]), int(in_channels[0] * width),
+            int(self.backbone_channel[0]), int(in_channels[0] * width),
             round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
 
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")

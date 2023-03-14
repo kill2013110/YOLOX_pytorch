@@ -8,16 +8,20 @@ from yolox.exp import Exp as MyExp
 class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
-        self.depth = 0.33
-        self.width = 0.50
+        # self.depth = 0.33
+        # self.width = 0.50
+        self.depth = 0.67
+        self.width = 0.75
+
         self.seed = 0
-        self.input_size = (416, 416)
+        self.input_size = (640, 640)
 
         '''backone'''
         self.only_backbone_pretrain = False
-        # self.backbone = 'yoloxpan'
+        self.backbone = 'yoloxpan'
         # self.backbone = 'TSCODE'
-        self.backbone = 'convnextv2'
+        self.box_loss = 'GIoU'
+        # self.backbone = 'convnextv2'
         # self.spp_size = (3, 5, 7)
         # self.spp_size = (3, 7, 11)
         '''head'''
@@ -25,7 +29,7 @@ class Exp(MyExp):
         # self.Assigner = 'TAL'
         self.Assigner = 'SimOTA'
         # self.head_type = 'var'
-        # self.head_type = 'org'
+        self.head_type = 'org'
         # self.head_type = 'points_branch_3'
         # self.var_config = 'star_early'
         # self.var_config = '8points_early'
@@ -53,7 +57,7 @@ class Exp(MyExp):
         assert self.no_aug_epochs == self.max_epoch - self.aug_epochs
 
         self.exp_name = f'{os.path.split(os.path.realpath(__file__))[1].split(".")[0]}_{self.head_type}_{self.var_config[0]}_{self.var_config[1]}'
-        # if self.backbone!='yoloxpan':self.exp_name = self.backbone+'_'+self.exp_name
+        if self.backbone!='yoloxpan':self.exp_name = self.backbone+'_'+self.exp_name
         if self.input_size[0] != 416: self.exp_name += f'_{self.input_size[0]}'
         if self.Assigner!='SimOTA': self.exp_name += f'_{self.Assigner}'
         if self.vari_dconv_mask: self.exp_name += f'_mask'
@@ -112,7 +116,7 @@ class Exp(MyExp):
         # self.basic_lr_per_img=0.00015625/10
 
 
-        self.data_num_workers = 2
+        self.data_num_workers = 4
         self.print_interval = 100
         self.eval_interval = 5
 

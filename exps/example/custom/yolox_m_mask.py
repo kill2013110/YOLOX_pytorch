@@ -48,9 +48,8 @@ class Exp(MyExp):
         self.cls_names = ('face', 'face_mask', 'nose_out', 'mouth_out', 'others', 'spoof')
         self.num_classes = len(self.cls_names)
 
-
         # self.l
-        self.basic_lr_per_img=0.00015625
+        self.basic_lr_per_img = 0.00015625
         # self.basic_lr_per_img=0.00015625/10
 
         self.no_aug_epochs = 15

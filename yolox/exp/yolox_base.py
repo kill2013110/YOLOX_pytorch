@@ -114,7 +114,7 @@ class Exp(BaseExp):
         self.get_face_pionts = False
         self.label_th = 0.9
         self.ada_pow = 0
-        # self.cls_loss = 'VF'
+        self.box_loss = 'a_CIoU'
         self.points_loss = 'Wing'
         self.points_loss_weight = 0.
         self.head_type = 'org'
@@ -123,6 +123,7 @@ class Exp(BaseExp):
         self.vari_dconv_mask = False
         self.spp_size = (5, 9, 13)
         self.Assigner = 'SimOTA'
+        self.backbone_ckpt = None
     def get_model(self):
         from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead, \
             YOLOXHead_points_branch_3_dconv,\
@@ -155,7 +156,7 @@ class Exp(BaseExp):
                                      get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
                                      points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
                                      var_config=self.var_config,
-                                     reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                     reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,box_loss=self.box_loss,
                                      cls_loss_weight=self.cls_loss_weight,
                                      vari_dconv_mask=self.vari_dconv_mask,
                                      Assigner=self.Assigner,
@@ -172,7 +173,7 @@ class Exp(BaseExp):
                                  get_face_pionts=self.get_face_pionts, points_loss_weight=self.points_loss_weight,
                                  points_loss=self.points_loss, ada_pow=self.ada_pow, label_th=self.label_th,
                                  var_config=self.var_config,
-                                 reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                                 reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight, box_loss=self.box_loss,
                                  cls_loss_weight=self.cls_loss_weight,
                                  vari_dconv_mask=self.vari_dconv_mask,
                                  Assigner=self.Assigner,
@@ -183,7 +184,7 @@ class Exp(BaseExp):
                         points_loss_weight=self.points_loss_weight,
                         points_loss=self.points_loss, ada_pow=self.ada_pow,
                         label_th=self.label_th, var_config=self.var_config,
-                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight, box_loss=self.box_loss,
                         cls_loss_weight=self.cls_loss_weight,
                         vari_dconv_mask = self.vari_dconv_mask,
                                                  )
@@ -202,7 +203,7 @@ class Exp(BaseExp):
                         points_loss_weight=self.points_loss_weight,
                         points_loss=self.points_loss, ada_pow=self.ada_pow,
                         label_th=self.label_th, var_config=self.var_config,
-                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight, box_loss=self.box_loss,
                         cls_loss_weight=self.cls_loss_weight,
                         vari_dconv_mask=self.vari_dconv_mask,
                        Assigner=self.Assigner,
@@ -213,7 +214,7 @@ class Exp(BaseExp):
                         points_loss_weight=self.points_loss_weight,
                         points_loss=self.points_loss, ada_pow=self.ada_pow,
                         label_th=self.label_th, var_config=self.var_config,
-                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight,
+                        reg_iou=self.reg_iou, box_loss_weight=self.box_loss_weight, box_loss=self.box_loss,
                         cls_loss_weight=self.cls_loss_weight,
                         vari_dconv_mask=self.vari_dconv_mask,
                        Assigner=self.Assigner,
