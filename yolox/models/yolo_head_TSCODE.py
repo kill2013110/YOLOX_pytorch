@@ -87,7 +87,7 @@ class YOLOXHead_TSCODE(nn.Module):
             stride=2,
             act=act,
         )
-        self.box_upsample = nn.Upsample(scale_factor=2, mode="nearest")
+        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
         for i in range(len(in_channels)):
             # self.stems.append(
@@ -146,9 +146,10 @@ class YOLOXHead_TSCODE(nn.Module):
             self.cls_preds.append(
                 nn.Conv2d(
                     # in_channels=int(256 * width * 2),
+                    # out_channels=self.n_anchors * self.num_classes * 4,
+
                     in_channels=int(256 * width),
                     out_channels=self.n_anchors * self.num_classes,
-                    # out_channels=self.n_anchors * self.num_classes * 4,
                     kernel_size=3 if 'last' == self.var_config[1] else 1,
                     stride=1,
                     padding=0,
@@ -234,8 +235,8 @@ class YOLOXHead_TSCODE(nn.Module):
             # cls_x = torch.cat((self.cls_downsample(x), x_s), 1)
             cls_x = x
             ''' Detail-preserving encoding for localization '''
-            H_s = self.box_upsample(x_s)
-            H_l = self.box_downsample(self.box_upsample(x) + x_l)
+            H_s = self.upsample(x_s)
+            H_l = self.box_downsample(self.upsample(x) + x_l)
             reg_x = H_s + x + H_l
 
             reg_feat = reg_conv(reg_x)
@@ -246,15 +247,15 @@ class YOLOXHead_TSCODE(nn.Module):
                 obj_output = torch.ones([reg_output.shape[0], 1, *reg_output.shape[2:]]).to(reg_output.device)
 
             if self.var_config[0] == None:
-                ''' YOLOX origin Conv style:  '''
+                ''' YOLOX TSCODE Conv style:  '''
                 cls_feat = cls_conv(cls_x)
                 cls_output = self.cls_preds[k](cls_feat)
-                # cls_output = self.box_upsample(cls_output)
+
+                # cls_output = self.upsample(cls_output)
                 # cls_output_4 = self.cls_preds[k](cls_feat)
-                # cls_output = cls_output_4.view([cls_output_4.shape[0], self.num_classes, *x.shape[2:]])  # 简单的reshape是不行的
                 # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)
-                # row1 = torch.cat((cls_output_4part[:2]), dim=2)
-                # row2 = torch.cat((cls_output_4part[2:]), dim=2)
+                # row1 = torch.cat((cls_output_4part[0].clone(), cls_output_4part[1].clone()), dim=2)
+                # row2 = torch.cat((cls_output_4part[2].clone(), cls_output_4part[3].clone()), dim=2)
                 # cls_output = torch.cat((row1, row2), dim=3)
                 #
                 # cls_output_4part = torch.chunk(cls_output_4, 4, dim=1)

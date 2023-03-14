@@ -1,0 +1,206 @@
+Index: yolox/models/yolo_head.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/yolox/models/yolo_head.py b/yolox/models/yolo_head.py
+--- a/yolox/models/yolo_head.py	
++++ b/yolox/models/yolo_head.py	(date 1667668460560)
+@@ -11,7 +11,7 @@
+ 
+ from yolox.utils import bboxes_iou, meshgrid
+ 
+-from .losses import IOUloss
++from .losses import IOUloss, WingLoss
+ from .network_blocks import BaseConv, DWConv
+ 
+ 
+@@ -24,6 +24,7 @@
+         in_channels=[256, 512, 1024],
+         act="silu",
+         depthwise=False,
++        get_face_pionts=False
+     ):
+         """
+         Args:
+@@ -31,7 +32,7 @@
+             depthwise (bool): whether apply depthwise conv in conv branch. Defalut value: False.
+         """
+         super().__init__()
+-
++        self.get_face_pionts = get_face_pionts
+         self.n_anchors = 1
+         self.num_classes = num_classes
+         self.decode_in_inference = True  # for deploy, set to False
+@@ -109,7 +110,7 @@
+             self.reg_preds.append(
+                 nn.Conv2d(
+                     in_channels=int(256 * width),
+-                    out_channels=4,
++                    out_channels= 4+2*6 if self.get_face_pionts else 4,
+                     kernel_size=1,
+                     stride=1,
+                     padding=0,
+@@ -131,6 +132,7 @@
+         self.obj_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
+         self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
+ 
++        self.points_loss_fn = WingLoss()
+         self.l1_loss = nn.L1Loss(reduction="none")
+         self.strides = strides
+         self.grids = [torch.zeros(1)] * len(in_channels)
+@@ -183,7 +185,7 @@
+                 if self.use_l1:
+                     batch_size = reg_output.shape[0]
+                     hsize, wsize = reg_output.shape[-2:]
+-                    reg_output = reg_output.view(
++                    reg_output = reg_output[:,:4].clone().view(
+                         batch_size, self.n_anchors, 4, hsize, wsize
+                     )
+                     reg_output = reg_output.permute(0, 1, 3, 4, 2).reshape(
+@@ -224,7 +226,7 @@
+         grid = self.grids[k]
+ 
+         batch_size = output.shape[0]
+-        n_ch = 5 + self.num_classes
++        n_ch = 4+ 2*6 +1 + self.num_classes if self.get_face_pionts else 5 + self.num_classes
+         hsize, wsize = output.shape[-2:]
+         if grid.shape[2:4] != output.shape[2:4]:
+             yv, xv = meshgrid([torch.arange(hsize), torch.arange(wsize)])
+@@ -238,6 +240,9 @@
+         grid = grid.view(1, -1, 2)
+         output[..., :2] = (output[..., :2] + grid) * stride
+         output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
++        if self.get_face_pionts:
++            for i in range(5,5+6*2,2):
++                output[..., i:i+2] = (output[...,i:i+2] + grid) * stride
+         return output, grid
+ 
+     def decode_outputs(self, outputs, dtype):
+@@ -255,7 +260,12 @@
+ 
+         outputs[..., :2] = (outputs[..., :2] + grids) * strides
+         outputs[..., 2:4] = torch.exp(outputs[..., 2:4]) * strides
+-        return outputs
++        if self.get_face_pionts:#outputs: [xc,yc,w,h, [x,y]*6 ,obj, cls...]
++            for i in range(5,5+6*2,2):
++                outputs[..., i:i+2] = (outputs[...,i:i+2] + grids) * strides
++            org_outputs = torch.cat([outputs[:, :, :4], outputs[:, :, -self.num_classes-1:]], 2)
++
++        return org_outputs
+ 
+     def get_losses(
+         self,
+@@ -268,10 +278,13 @@
+         origin_preds,
+         dtype,
+     ):
++        '''
++        '''
+         bbox_preds = outputs[:, :, :4]  # [batch, n_anchors_all, 4]
+-        obj_preds = outputs[:, :, 4].unsqueeze(-1)  # [batch, n_anchors_all, 1]
+-        cls_preds = outputs[:, :, 5:]  # [batch, n_anchors_all, n_cls]
+-
++        obj_preds = outputs[:, :, -self.num_classes-1].unsqueeze(-1)  # [batch, n_anchors_all, 1]
++        cls_preds = outputs[:, :, -self.num_classes:]  # [batch, n_anchors_all, n_cls]
++        if self.get_face_pionts: #outputs: [xc,yc,w,h, [x,y]*6 ,obj, cls...]
++            points_preds = outputs[:, :, 5:5+2*6]
+         # calculate targets
+         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
+ 
+@@ -286,6 +299,7 @@
+         reg_targets = []
+         l1_targets = []
+         obj_targets = []
++        points_targets = []
+         fg_masks = []
+ 
+         num_fg = 0.0
+@@ -297,6 +311,8 @@
+             if num_gt == 0:
+                 cls_target = outputs.new_zeros((0, self.num_classes))
+                 reg_target = outputs.new_zeros((0, 4))
++                if self.get_face_pionts:
++                    points_target = outputs.new_zeros((0, 2*6))
+                 l1_target = outputs.new_zeros((0, 4))
+                 obj_target = outputs.new_zeros((total_num_anchors, 1))
+                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
+@@ -304,6 +320,8 @@
+                 gt_bboxes_per_image = labels[batch_idx, :num_gt, 1:5]
+                 gt_classes = labels[batch_idx, :num_gt, 0]
+                 bboxes_preds_per_image = bbox_preds[batch_idx]
++                if self.get_face_pionts: #labels: [c,xc,yc,w,h, [x,y,score]*6]
++                    points_per_image = labels[batch_idx, :num_gt, 5:5+6*3]
+ 
+                 try:
+                     (
+@@ -370,7 +388,9 @@
+                     gt_matched_classes.to(torch.int64), self.num_classes
+                 ) * pred_ious_this_matching.unsqueeze(-1)
+                 obj_target = fg_mask.unsqueeze(-1)
+-                reg_target = gt_bboxes_per_image[matched_gt_inds]
++                reg_target = gt_bboxes_per_image[matched_gt_inds] # 该特征层匹配到的gt索引
++                if self.get_face_pionts:
++                    points_target = points_per_image[matched_gt_inds]
+                 if self.use_l1:
+                     l1_target = self.get_l1_target(
+                         outputs.new_zeros((num_fg_img, 4)),
+@@ -386,6 +406,8 @@
+             fg_masks.append(fg_mask)
+             if self.use_l1:
+                 l1_targets.append(l1_target)
++            if self.get_face_pionts:
++                points_targets.append(points_target)
+ 
+         cls_targets = torch.cat(cls_targets, 0)
+         reg_targets = torch.cat(reg_targets, 0)
+@@ -393,25 +415,28 @@
+         fg_masks = torch.cat(fg_masks, 0)
+         if self.use_l1:
+             l1_targets = torch.cat(l1_targets, 0)
+-
++        if self.get_face_pionts:
++            points_targets = torch.cat(points_targets, 0)
+         num_fg = max(num_fg, 1)
+-        loss_iou = (
+-            self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets)
+-        ).sum() / num_fg
+-        loss_obj = (self.obj_loss_fn(obj_preds.view(-1, 1), obj_targets)
+-                   ).sum() / num_fg
+-        loss_cls = (self.cls_loss_fn(
+-                cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets)
+-        ).sum() / num_fg
++        loss_iou = (self.iou_loss_fn(bbox_preds.view(-1, 4)[fg_masks], reg_targets))\
++                       .sum() / num_fg
++        loss_obj = (self.obj_loss_fn(obj_preds.view(-1, 1), obj_targets))\
++                       .sum() / num_fg
++        loss_cls = (self.cls_loss_fn(cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets))\
++                       .sum() / num_fg
+         if self.use_l1:
+-            loss_l1 = (
+-                self.l1_loss(origin_preds.view(-1, 4)[fg_masks], l1_targets)
+-            ).sum() / num_fg
++            loss_l1 = (self.l1_loss(origin_preds.view(-1, 4)[fg_masks], l1_targets))\
++                          .sum() / num_fg
+         else:
+             loss_l1 = 0.0
+ 
++        if self.get_face_pionts:
++            loss_points = (self.points_loss_fn(points_preds.view(-1, 2*6)[fg_masks], points_targets))\
++                              .sum() / num_fg
++        else:
++            loss_points = 0.0
+         reg_weight = 5.0
+-        loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1
++        loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1 + loss_points*.0
+ 
+         return (
+             loss,
+@@ -419,6 +444,7 @@
+             loss_obj,
+             loss_cls,
+             loss_l1,
++            loss_points,
+             num_fg / max(num_gts, 1),
+         )
+ 

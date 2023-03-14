@@ -32,7 +32,9 @@ class YOLOXHead(nn.Module):
         points_loss_weight=0.,
         var_config=[None,None],
         reg_iou=True,
+        box_loss='GIoU',
         box_loss_weight=5.,
+        # cls_loss='BCE',
         cls_loss_weight=1,
         vari_dconv_mask=False,
         Assigner='SimOTA',
@@ -86,41 +88,24 @@ class YOLOXHead(nn.Module):
             self.cls_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
+                            ksize=3, stride=1, act=act,),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            # out_channels=2,
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                            ksize=3, stride=1, act=act,),
                     ]
                 )
             )
             self.reg_convs.append(
                 nn.Sequential(
                     *[
-                        Conv(
-                            in_channels=int(256 * width),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
-                        Conv(
-                            in_channels=int(256 * width),
+                            ksize=3, stride=1, act=act,),
+                        Conv(in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
-                            stride=1,
-                            act=act,
-                        ),
+                            ksize=3, stride=1, act=act,),
                     ]
                 )
             )
@@ -167,8 +152,13 @@ class YOLOXHead(nn.Module):
             self.cls_loss_fn = nn.BCEWithLogitsLoss(reduction="none")
         else:
             self.cls_loss_fn = VariFocalLoss()
-        # if box_loss =='CIoU':
-        self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
+        if box_loss =='a_CIoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="alpha_ciou")
+        elif box_loss =='GIoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="giou")
+        elif box_loss =='IoU':
+            self.iou_loss_fn = IOUloss(reduction="none", loss_type="iou")
+
         if self.get_face_pionts != 0:
             assert points_loss in ['SmoothL1', 'Wing']
             if points_loss == 'Wing':
@@ -237,7 +227,7 @@ class YOLOXHead(nn.Module):
                     offset[:, 1:6:2] = 0-1
                     offset[:, 13:18:2] = 0+1  # 也可写作 offset[:, 13::2] = y+h/2
 
-                if '8points' in self.var_config:  # 8个关键点 + 特征点
+                elif '8points' in self.var_config:  # 8个关键点 + 特征点
                     assert points_output.shape[1] == 8 * 2
                     ''' 8points Dconv style
                     8points_output:
@@ -602,7 +592,10 @@ class YOLOXHead(nn.Module):
             reg_targets.append(reg_target)
             obj_targets.append(obj_target.to(dtype))
             fg_masks.append(fg_mask)
-            fg_iou_metrics.append(fg_iou_metric)
+            try:
+                fg_iou_metrics.append(fg_iou_metric)
+            except:
+                print('error')
             if self.use_l1:
                 l1_targets.append(l1_target)
             if self.get_face_pionts:

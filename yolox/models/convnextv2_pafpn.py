@@ -7,12 +7,13 @@ import torch.nn as nn
 try:
     from .darknet import CSPDarknet
     from .network_blocks import BaseConv, CSPLayer, DWConv
+    from .convnextv2 import convnextv2_atto, convnextv2_femto
 except:
     from darknet import CSPDarknet
     from network_blocks import BaseConv, CSPLayer, DWConv
+    from convnextv2 import convnextv2_atto, convnextv2_femto
 
-
-class YOLOPAFPN(nn.Module):
+class ConvNextv2_PAFPN(nn.Module):
     """
     YOLOv3 model. Darknet 53 is the default backbone of this model.
     """
@@ -26,17 +27,38 @@ class YOLOPAFPN(nn.Module):
         depthwise=False,
         act="silu",
         spp_size=(5, 9, 13),
+        backbone_ckpt=None,
+        convnextv2='atto'
     ):
         super().__init__()
-        self.backbone = CSPDarknet(depth, width, depthwise=depthwise, act=act, spp_size=spp_size)
+        if convnextv2=='atto':
+            self.backbone = convnextv2_atto(classifier=False)
+            self.backbone_channel = [80, 160, 320]
+        else:
+            pass
+        if backbone_ckpt!=None:
+            self.backbone.load_state_dict(torch.load(backbone_ckpt)['model'], False)
+            print('convnextv2 atto backbone_ckpt loaded !')
+
         self.in_features = in_features
         self.in_channels = in_channels
         Conv = DWConv if depthwise else BaseConv
 
+        '''convnextv2 backbone channel adjust'''
+        self.C_s = CSPLayer(
+            int(self.backbone_channel[2]), int(in_channels[2] * width),
+            round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
+        self.C_m = CSPLayer(
+            int(self.backbone_channel[1]), int(in_channels[1] * width),
+            round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
+        self.C_l = CSPLayer(
+            int(self.backbone_channel[0]), int(in_channels[0] * width),
+            round(3 * depth), False, depthwise=depthwise, act=act,)  # cat
+
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
         self.lateral_conv0 = BaseConv(
             int(in_channels[2] * width), int(in_channels[1] * width), 1, 1, act=act
-        )
+        )  # x1
         self.C3_p4 = CSPLayer(
             int(2 * in_channels[1] * width),
             int(in_channels[1] * width),
@@ -95,8 +117,9 @@ class YOLOPAFPN(nn.Module):
 
         #  backbone
         out_features = self.backbone(input)
-        features = [out_features[f] for f in self.in_features]
-        [x2, x1, x0] = features
+        # features = [out_features[f] for f in self.in_features]
+        [x2, x1, x0] = out_features
+        [x2, x1, x0] = self.C_l(x2), self.C_m(x1), self.C_s(x0)
 
         fpn_out0 = self.lateral_conv0(x0)  # 1024->512/32
         f_out0 = self.upsample(fpn_out0)  # 512/16
@@ -122,7 +145,7 @@ if __name__ == "__main__":
     import torch, copy
     # from torchinfo import summary
     from thop import profile
-    net = YOLOPAFPN(depth=0.33, width=0.5)
+    net = ConvNextv2_PAFPN(depth=0.33, width=0.5)
     a = net(torch.randn([4, 3, 640, 640]))
 
     for i in a:

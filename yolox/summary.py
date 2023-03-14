@@ -6,7 +6,7 @@ from models.yolo_pafpn import YOLOPAFPN
 from models.yolo_head_TSCODE import YOLOXHead_TSCODE
 from models.yolo_head import YOLOXHead
 from models.yolox import YOLOX
-
+from models.darknet import CSPDarknet
 depth = 0.33
 width = 0.5
 

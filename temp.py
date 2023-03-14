@@ -1,4 +1,4 @@
 import torch
-
-
-print(torch.nn.Sigmoid()(-0.7))
+a = torch.randn([1,8,3,3])
+b = a.chunk(4, dim=1)
+print('asd')
